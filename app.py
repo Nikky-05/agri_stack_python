@@ -42,7 +42,7 @@ app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
 # ============================================================
 # 2. LGD AUTHORIZATION REGISTRY (CRITICAL FOR SECURITY)
 # ============================================================
-
+# nikky = "NIkky"
 # State LGD Code Mapping - Official Government Codes
 STATE_LGD_MAP = {
     # State Name (lowercase) -> LGD Code
