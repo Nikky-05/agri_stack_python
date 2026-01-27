@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#059669">
+    <meta name="description" content="AgriStack MIS - Government Conversational Analytics Platform">
+    <title>AgriStack MIS Analytics</title>
+    <link rel="stylesheet" href="style.css?v=7">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <!-- Login Overlay -->
+    <div id="loginOverlay" class="login-overlay">
+        <div class="login-bg-pattern"></div>
+        <div class="login-container">
+            <div class="login-card">
+                <div class="login-header">
+                    <div class="login-logo">
+                        <div class="logo-icon-wrapper">
+                            <i class="fas fa-leaf"></i>
+                        </div>
+                        <div class="logo-text">
+                            <span class="logo-main">AgriStack</span>
+                            <span class="logo-sub">MIS Analytics</span>
+                        </div>
+                    </div>
+                    <div class="govt-badge">
+                        <i class="fas fa-shield-halved"></i>
+                        <span>Government of India</span>
+                    </div>
+                </div>
+
+                <div class="login-body">
+                    <h2>Welcome Back</h2>
+                    <p>Enter your State LGD Code to access the analytics dashboard</p>
+
+                    <div class="input-group">
+                        <div class="input-wrapper">
+                            <i class="fas fa-map-marker-alt"></i>
+                            <input type="text" id="lgdInput" placeholder="State LGD Code (e.g., 27)" maxlength="5" autocomplete="off">
+                        </div>
+                    </div>
+
+                    <button id="loginBtn" class="login-btn">
+                        <span>Access Dashboard</span>
+                        <i class="fas fa-arrow-right"></i>
+                    </button>
+                </div>
+
+                <div class="login-footer">
+                    <div class="security-note">
+                        <i class="fas fa-lock"></i>
+                        <span>Secure Access Portal</span>
+                    </div>
+                    <p class="footer-text">Powered by Unified AgriStack Database</p>
+                </div>
+            </div>
+
+            <div class="login-features">
+                <div class="feature-item">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Real-time Analytics</span>
+                </div>
+                <div class="feature-item">
+                    <i class="fas fa-database"></i>
+                    <span>Unified Data</span>
+                </div>
+                <div class="feature-item">
+                    <i class="fas fa-shield-check"></i>
+                    <span>Policy Compliant</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Application -->
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">
+                    <i class="fas fa-leaf"></i>
+                    <span>AgriStack</span>
+                </div>
+                <button class="sidebar-close" id="sidebarClose">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active">
+                    <i class="fas fa-comments"></i>
+                    <span>Analytics Chat</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i class="fas fa-chart-pie"></i>
+                    <span>Dashboard</span>
+                    <span class="nav-badge">Soon</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i class="fas fa-file-alt"></i>
+                    <span>Reports</span>
+                    <span class="nav-badge">Soon</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <div class="user-avatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="user-details">
+                        <span class="user-role">State Officer</span>
+                        <span class="user-lgd">LGD: <span id="sidebarLgd">--</span></span>
+                    </div>
+                </div>
+                <button class="logout-btn" id="logoutBtn" title="Logout">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Header -->
+            <header class="top-header">
+                <div class="header-left">
+                    <button class="menu-toggle" id="menuToggle">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="header-title">
+                        <h1>Conversational Analytics</h1>
+                        <p>Ask questions in natural language</p>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <div class="lgd-indicator" id="lgdBadge">
+                        <i class="fas fa-map-pin"></i>
+                        <span>LGD: <strong id="lgdDisplay">--</strong></span>
+                    </div>
+                    <div class="status-indicator">
+                        <span class="status-dot"></span>
+                        <span>Online</span>
+                    </div>
+                    <button class="logout-btn" id="logoutBtn" title="Logout">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Chat Container -->
+            <div class="chat-container">
+                <!-- Chat Messages -->
+                <div class="chat-messages" id="chatMessages">
+                    <!-- Welcome Screen -->
+                    <div class="welcome-screen" id="welcomeScreen">
+                        <div class="welcome-content">
+                            <div class="welcome-icon">
+                                <div class="icon-circle">
+                                    <i class="fas fa-seedling"></i>
+                                </div>
+                                <div class="icon-rings">
+                                    <div class="ring ring-1"></div>
+                                    <div class="ring ring-2"></div>
+                                    <div class="ring ring-3"></div>
+                                </div>
+                            </div>
+                            <h2>AgriStack Analytics Assistant</h2>
+                            <p>Get instant insights about crop distribution, survey progress, land usage, and farmer metrics.</p>
+
+                            <div class="quick-actions">
+                                <h3>Popular Queries</h3>
+                                <div class="query-grid">
+                                    <button class="query-card" data-query="District-wise crop area summary">
+                                        <div class="query-icon"><i class="fas fa-chart-bar"></i></div>
+                                        <div class="query-text">
+                                            <span class="query-title">Crop Area</span>
+                                            <span class="query-desc">District-wise summary</span>
+                                        </div>
+                                    </button>
+                                    <button class="query-card" data-query="How many plots have been surveyed this year?">
+                                        <div class="query-icon"><i class="fas fa-clipboard-check"></i></div>
+                                        <div class="query-text">
+                                            <span class="query-title">Survey Progress</span>
+                                            <span class="query-desc">Plots surveyed</span>
+                                        </div>
+                                    </button>
+                                    <button class="query-card" data-query="Total registered farmers">
+                                        <div class="query-icon"><i class="fas fa-users"></i></div>
+                                        <div class="query-text">
+                                            <span class="query-title">Farmers</span>
+                                            <span class="query-desc">Total registered</span>
+                                        </div>
+                                    </button>
+                                    <button class="query-card" data-query="Show irrigated vs unirrigated area">
+                                        <div class="query-icon"><i class="fas fa-tint"></i></div>
+                                        <div class="query-text">
+                                            <span class="query-title">Irrigation</span>
+                                            <span class="query-desc">Coverage analysis</span>
+                                        </div>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat Input -->
+                <div class="chat-input-area">
+                    <div class="input-container">
+                        <div class="input-box">
+                            <input type="text" id="chatInput" placeholder="Ask about crops, surveys, land usage..." autocomplete="off">
+                            <div class="input-actions">
+                                <button class="voice-btn" id="voiceBtn" title="Voice input (coming soon)" disabled>
+                                    <i class="fas fa-microphone"></i>
+                                </button>
+                                <button class="send-btn" id="sendBtn">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <p class="input-hint">Press Enter to send or click the send button</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js?v=7"></script>
+</body>
+
+</html>
