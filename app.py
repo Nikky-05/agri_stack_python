@@ -25,7 +25,7 @@ app.add_middleware(
 app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
 
 # SETTING: Switch between "database" and "csv" here
-DATA_SOURCE = "database" 
+DATA_SOURCE = "csv" 
 
 # Initialize Handlers
 nlp = NLPHandler()
@@ -57,7 +57,7 @@ async def chat(request: UserQuery):
     # 3. Handle Analytics Mode (Data Layer)
     try:
         # Choose engine dynamically
-        if DATA_SOURCE == "csv":
+        if DATA_SOURCE == "database":
             result = db_engine.execute_analytics(intent, user_lgd)
         else:
             result = csv_engine.execute_analytics(intent, user_lgd)
