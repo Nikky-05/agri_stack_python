@@ -1,6 +1,6 @@
 /**
- * AgriStack MIS - Compact Analytics UI v3.0
- * Smart Response Rendering with Visual KPIs
+ * AgriStack MIS - Premium Analytics UI v5.0
+ * Enhanced Charts with Gradients, 3D Effects & Animations
  */
 
 // ============================================================
@@ -10,10 +10,24 @@
 let userLGD = localStorage.getItem('userLGD');
 let activeCharts = new Map();
 
-// Compact Color Palette
+// Premium Gradient Color Palette
 const COLORS = {
     primary: ['#059669', '#10b981', '#34d399', '#6ee7b7', '#a7f3d0'],
-    chart: ['#059669', '#0891b2', '#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#84cc16', '#14b8a6'],
+    chart: [
+        '#059669', '#0891b2', '#6366f1', '#8b5cf6',
+        '#ec4899', '#f59e0b', '#84cc16', '#14b8a6',
+        '#f43f5e', '#3b82f6', '#a855f7', '#22c55e'
+    ],
+    gradients: [
+        ['#059669', '#34d399'],
+        ['#0891b2', '#22d3ee'],
+        ['#6366f1', '#a78bfa'],
+        ['#8b5cf6', '#c4b5fd'],
+        ['#ec4899', '#f9a8d4'],
+        ['#f59e0b', '#fcd34d'],
+        ['#84cc16', '#bef264'],
+        ['#14b8a6', '#5eead4']
+    ],
     success: '#10b981',
     warning: '#f59e0b',
     error: '#ef4444',
@@ -71,8 +85,10 @@ function setupEventListeners(elements) {
         }
     });
 
-    // Logout
-    logoutBtn?.addEventListener('click', handleLogout);
+    // Logout - handle all logout buttons
+    document.querySelectorAll('#logoutBtn, .logout-btn').forEach(btn => {
+        btn.addEventListener('click', handleLogout);
+    });
 
     // Mobile sidebar
     menuToggle?.addEventListener('click', () => {
@@ -125,7 +141,7 @@ function handleLogin(elements) {
         updateLGDDisplay(elements, code);
     } else {
         elements.lgdInput?.classList.add('shake');
-        setTimeout(() => elements.lgdInput?.classList.remove('shake'), 400);
+        setTimeout(() => elements.lgdInput?.classList.remove('shake'), 500);
     }
 }
 
@@ -138,7 +154,8 @@ function handleLogout() {
 function hideLogin(elements) {
     if (elements.loginOverlay) {
         elements.loginOverlay.style.opacity = '0';
-        setTimeout(() => elements.loginOverlay.style.display = 'none', 250);
+        elements.loginOverlay.style.transform = 'scale(1.05)';
+        setTimeout(() => elements.loginOverlay.style.display = 'none', 300);
     }
 }
 
@@ -270,7 +287,7 @@ function renderSmartResponse(container, data) {
     scrollToBottom(container);
 
     // Initialize charts after DOM render
-    setTimeout(() => initializeCharts(div, data), 50);
+    setTimeout(() => initializeCharts(div, data), 100);
 }
 
 // ============================================================
@@ -279,8 +296,6 @@ function renderSmartResponse(container, data) {
 
 function renderConversation(data) {
     const narration = data.narration || 'How can I help you today?';
-
-    // Convert markdown-like formatting
     const formatted = formatNarration(narration);
 
     return `
@@ -301,7 +316,7 @@ function renderUnauthorized(data) {
             <i class="fas fa-shield-halved"></i>
             <div>
                 <strong>Access Restricted</strong>
-                <p style="margin-top:4px;font-size:12px;">${escapeHtml(data.narration)}</p>
+                <p style="margin-top:4px;font-size:13px;">${escapeHtml(data.narration)}</p>
             </div>
         </div>
     `;
@@ -317,7 +332,7 @@ function renderNoData(data) {
             <i class="fas fa-database"></i>
             <div>
                 <strong>${escapeHtml(data.title)}</strong>
-                <p style="margin-top:4px;font-size:12px;">${escapeHtml(data.narration)}</p>
+                <p style="margin-top:4px;font-size:13px;">${escapeHtml(data.narration)}</p>
             </div>
         </div>
     `;
@@ -373,7 +388,7 @@ function renderAnalytics(data) {
 }
 
 // ============================================================
-// KPI VISUAL - Progress Ring + Mini Bar
+// KPI VISUAL - Animated Ring with Gradient
 // ============================================================
 
 function renderKPIVisual(data, chartId) {
@@ -381,17 +396,25 @@ function renderKPIVisual(data, chartId) {
     const unit = data.chart_data.unit || '';
     const formatted = formatNumber(value);
 
-    // Calculate progress percentage (assume 100% baseline for demo)
+    // Calculate progress percentage
     const percentage = Math.min(100, Math.max(0, (value / (value * 1.2)) * 100));
-    const circumference = 2 * Math.PI * 22;
+    const circumference = 2 * Math.PI * 26;
     const strokeDasharray = `${(percentage / 100) * circumference} ${circumference}`;
 
     return `
         <div class="kpi-compact">
             <div class="kpi-ring">
-                <svg viewBox="0 0 56 56">
-                    <circle class="ring-bg" cx="28" cy="28" r="22"></circle>
-                    <circle class="ring-progress" cx="28" cy="28" r="22"
+                <svg viewBox="0 0 64 64">
+                    <defs>
+                        <linearGradient id="kpiGradient-${chartId}" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#059669"/>
+                            <stop offset="50%" stop-color="#10b981"/>
+                            <stop offset="100%" stop-color="#34d399"/>
+                        </linearGradient>
+                    </defs>
+                    <circle class="ring-bg" cx="32" cy="32" r="26"></circle>
+                    <circle class="ring-progress" cx="32" cy="32" r="26"
+                            stroke="url(#kpiGradient-${chartId})"
                             stroke-dasharray="${strokeDasharray}"></circle>
                 </svg>
                 <div class="kpi-ring-value">${Math.round(percentage)}%</div>
@@ -417,7 +440,7 @@ function renderKPIVisual(data, chartId) {
 }
 
 // ============================================================
-// BAR CHART VISUAL
+// BAR CHART - 3D Style with Gradients
 // ============================================================
 
 function renderBarChart(data, chartId) {
@@ -436,7 +459,7 @@ function renderBarChart(data, chartId) {
             <tr>
                 <td><span class="table-rank ${i === 0 ? 'top' : ''}">${i + 1}</span></td>
                 <td>${escapeHtml(String(label))}</td>
-                <td style="text-align:right;font-weight:600">${formatNumber(values[i])}</td>
+                <td style="text-align:right;font-weight:700">${formatNumber(values[i])}</td>
                 <td style="text-align:right;color:var(--gray-500)">${pct}%</td>
             </tr>
         `;
@@ -463,7 +486,7 @@ function renderBarChart(data, chartId) {
 }
 
 // ============================================================
-// PIE CHART VISUAL
+// PIE CHART - Doughnut with 3D Effect
 // ============================================================
 
 function renderPieChart(data, chartId) {
@@ -471,25 +494,27 @@ function renderPieChart(data, chartId) {
     const values = data.chart_data.values || [];
     const total = values.reduce((a, b) => a + b, 0);
 
-    // Legend items
+    // Legend items with gradient badges
     let legendItems = '';
     labels.slice(0, 6).forEach((label, i) => {
         const pct = total > 0 ? ((values[i] / total) * 100).toFixed(1) : 0;
+        const color = COLORS.chart[i % COLORS.chart.length];
         legendItems += `
-            <div style="display:flex;align-items:center;gap:6px;font-size:11px;margin-bottom:4px">
-                <span style="width:8px;height:8px;border-radius:50%;background:${COLORS.chart[i % COLORS.chart.length]}"></span>
-                <span style="color:var(--gray-600);flex:1">${escapeHtml(String(label))}</span>
-                <span style="font-weight:600">${pct}%</span>
+            <div style="display:flex;align-items:center;gap:10px;font-size:12px;margin-bottom:8px;padding:6px 10px;background:linear-gradient(135deg,#f9fafb,#ffffff);border-radius:8px;border:1px solid #e5e7eb">
+                <span style="width:12px;height:12px;border-radius:4px;background:${color};box-shadow:0 2px 4px rgba(0,0,0,0.1)"></span>
+                <span style="color:var(--gray-700);flex:1;font-weight:500">${escapeHtml(String(label))}</span>
+                <span style="font-weight:700;color:var(--gray-800)">${pct}%</span>
             </div>
         `;
     });
 
     return `
-        <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
-            <div class="chart-pie-container" style="flex:1;min-width:140px">
+        <div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap">
+            <div class="chart-pie-container" style="flex:1;min-width:180px">
                 <canvas id="${chartId}"></canvas>
             </div>
-            <div style="flex:1;min-width:140px">
+            <div style="flex:1;min-width:180px">
+                <div style="font-size:11px;font-weight:700;color:var(--gray-400);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">Distribution</div>
                 ${legendItems}
             </div>
         </div>
@@ -497,7 +522,7 @@ function renderPieChart(data, chartId) {
 }
 
 // ============================================================
-// LINE CHART VISUAL
+// LINE CHART - Area with Gradient Fill
 // ============================================================
 
 function renderLineChart(data, chartId) {
@@ -572,7 +597,7 @@ function renderMetadata(metadata) {
 }
 
 // ============================================================
-// CHART INITIALIZATION
+// CHART INITIALIZATION - Premium Styling
 // ============================================================
 
 function initializeCharts(container, data) {
@@ -596,42 +621,69 @@ function initializeCharts(container, data) {
 
     switch (chartType) {
         case 'bar':
+            // Create gradient backgrounds for each bar
+            const barGradients = values.map((_, i) => {
+                const gradient = ctx.createLinearGradient(0, 0, 400, 0);
+                const colorPair = COLORS.gradients[i % COLORS.gradients.length];
+                gradient.addColorStop(0, colorPair[0]);
+                gradient.addColorStop(1, colorPair[1]);
+                return gradient;
+            });
+
             config = {
                 type: 'bar',
                 data: {
-                    labels: labels.map(l => truncateLabel(String(l), 12)),
+                    labels: labels.map(l => truncateLabel(String(l), 15)),
                     datasets: [{
                         data: values,
-                        backgroundColor: COLORS.chart.slice(0, values.length),
-                        borderRadius: 4,
-                        maxBarThickness: 32
+                        backgroundColor: barGradients,
+                        borderRadius: 8,
+                        borderSkipped: false,
+                        maxBarThickness: 40,
+                        hoverBackgroundColor: COLORS.chart.slice(0, values.length)
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     indexAxis: 'y',
+                    animation: {
+                        duration: 1200,
+                        easing: 'easeOutQuart'
+                    },
                     plugins: {
                         legend: { display: false },
                         tooltip: {
-                            backgroundColor: 'rgba(17,24,39,0.9)',
-                            titleFont: { size: 11 },
-                            bodyFont: { size: 11 },
-                            padding: 8,
-                            cornerRadius: 4,
+                            backgroundColor: 'rgba(17, 24, 39, 0.95)',
+                            titleFont: { size: 13, weight: '600' },
+                            bodyFont: { size: 12 },
+                            padding: 14,
+                            cornerRadius: 10,
+                            displayColors: true,
+                            boxPadding: 6,
                             callbacks: {
-                                label: ctx => `${formatNumber(ctx.raw)} ${unit}`
+                                label: ctx => ` ${formatNumber(ctx.raw)} ${unit}`
                             }
                         }
                     },
                     scales: {
                         x: {
-                            grid: { color: 'rgba(0,0,0,0.04)' },
-                            ticks: { font: { size: 10 }, callback: v => formatNumber(v) }
+                            grid: {
+                                color: 'rgba(0,0,0,0.04)',
+                                drawBorder: false
+                            },
+                            ticks: {
+                                font: { size: 11, weight: '500' },
+                                color: '#6b7280',
+                                callback: v => formatNumber(v)
+                            }
                         },
                         y: {
                             grid: { display: false },
-                            ticks: { font: { size: 10 } }
+                            ticks: {
+                                font: { size: 11, weight: '500' },
+                                color: '#374151'
+                            }
                         }
                     }
                 }
@@ -646,26 +698,39 @@ function initializeCharts(container, data) {
                     datasets: [{
                         data: values,
                         backgroundColor: COLORS.chart.slice(0, values.length),
-                        borderWidth: 0,
-                        cutout: '65%'
+                        borderWidth: 3,
+                        borderColor: '#ffffff',
+                        hoverBorderWidth: 4,
+                        hoverBorderColor: '#ffffff',
+                        hoverOffset: 15,
+                        cutout: '60%',
+                        spacing: 2
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    animation: {
+                        animateRotate: true,
+                        animateScale: true,
+                        duration: 1500,
+                        easing: 'easeOutElastic'
+                    },
                     plugins: {
                         legend: { display: false },
                         tooltip: {
-                            backgroundColor: 'rgba(17,24,39,0.9)',
-                            titleFont: { size: 11 },
-                            bodyFont: { size: 11 },
-                            padding: 8,
-                            cornerRadius: 4,
+                            backgroundColor: 'rgba(17, 24, 39, 0.95)',
+                            titleFont: { size: 13, weight: '600' },
+                            bodyFont: { size: 12 },
+                            padding: 14,
+                            cornerRadius: 10,
+                            displayColors: true,
+                            boxPadding: 6,
                             callbacks: {
                                 label: ctx => {
                                     const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
                                     const pct = ((ctx.raw / total) * 100).toFixed(1);
-                                    return `${formatNumber(ctx.raw)} ${unit} (${pct}%)`;
+                                    return ` ${formatNumber(ctx.raw)} ${unit} (${pct}%)`;
                                 }
                             }
                         }
@@ -675,34 +740,53 @@ function initializeCharts(container, data) {
             break;
 
         case 'line':
+            // Create gradient fill
+            const lineGradient = ctx.createLinearGradient(0, 0, 0, 200);
+            lineGradient.addColorStop(0, 'rgba(5, 150, 105, 0.3)');
+            lineGradient.addColorStop(0.5, 'rgba(16, 185, 129, 0.15)');
+            lineGradient.addColorStop(1, 'rgba(52, 211, 153, 0.02)');
+
             config = {
                 type: 'line',
                 data: {
                     labels: labels,
                     datasets: [{
                         data: values,
-                        borderColor: COLORS.primary[0],
-                        backgroundColor: 'rgba(5,150,105,0.1)',
+                        borderColor: '#059669',
+                        backgroundColor: lineGradient,
                         fill: true,
-                        tension: 0.3,
-                        borderWidth: 2,
-                        pointRadius: 3,
-                        pointBackgroundColor: COLORS.primary[0],
-                        pointBorderColor: '#fff',
-                        pointBorderWidth: 1
+                        tension: 0.4,
+                        borderWidth: 3,
+                        pointRadius: 5,
+                        pointBackgroundColor: '#ffffff',
+                        pointBorderColor: '#059669',
+                        pointBorderWidth: 3,
+                        pointHoverRadius: 8,
+                        pointHoverBackgroundColor: '#059669',
+                        pointHoverBorderColor: '#ffffff',
+                        pointHoverBorderWidth: 3
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    animation: {
+                        duration: 1500,
+                        easing: 'easeOutQuart'
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
                     plugins: {
                         legend: { display: false },
                         tooltip: {
-                            backgroundColor: 'rgba(17,24,39,0.9)',
-                            titleFont: { size: 11 },
-                            bodyFont: { size: 11 },
-                            padding: 8,
-                            cornerRadius: 4,
+                            backgroundColor: 'rgba(17, 24, 39, 0.95)',
+                            titleFont: { size: 13, weight: '600' },
+                            bodyFont: { size: 12 },
+                            padding: 14,
+                            cornerRadius: 10,
+                            displayColors: false,
                             callbacks: {
                                 label: ctx => `${formatNumber(ctx.raw)} ${unit}`
                             }
@@ -711,11 +795,21 @@ function initializeCharts(container, data) {
                     scales: {
                         x: {
                             grid: { display: false },
-                            ticks: { font: { size: 10 } }
+                            ticks: {
+                                font: { size: 11, weight: '500' },
+                                color: '#6b7280'
+                            }
                         },
                         y: {
-                            grid: { color: 'rgba(0,0,0,0.04)' },
-                            ticks: { font: { size: 10 }, callback: v => formatNumber(v) },
+                            grid: {
+                                color: 'rgba(0,0,0,0.04)',
+                                drawBorder: false
+                            },
+                            ticks: {
+                                font: { size: 11, weight: '500' },
+                                color: '#6b7280',
+                                callback: v => formatNumber(v)
+                            },
                             beginAtZero: true
                         }
                     }
@@ -744,7 +838,7 @@ function renderErrorMessage(container, message) {
                 <i class="fas fa-exclamation-triangle"></i>
                 <div>
                     <strong>Connection Error</strong>
-                    <p style="margin-top:4px;font-size:12px;">${escapeHtml(message)}</p>
+                    <p style="margin-top:4px;font-size:13px;">${escapeHtml(message)}</p>
                 </div>
             </div>
         </div>
@@ -790,7 +884,7 @@ function truncateLabel(label, maxLen) {
 
 function getChartIcon(type) {
     const icons = {
-        kpi: 'fa-gauge',
+        kpi: 'fa-gauge-high',
         bar: 'fa-chart-bar',
         pie: 'fa-chart-pie',
         line: 'fa-chart-line'
@@ -800,7 +894,10 @@ function getChartIcon(type) {
 
 function scrollToBottom(container) {
     if (container) {
-        container.scrollTop = container.scrollHeight;
+        container.scrollTo({
+            top: container.scrollHeight,
+            behavior: 'smooth'
+        });
     }
 }
 
@@ -818,6 +915,6 @@ function hideOverlay() {
     const overlay = document.querySelector('.sidebar-overlay');
     if (overlay) {
         overlay.classList.remove('show');
-        setTimeout(() => overlay.remove(), 250);
+        setTimeout(() => overlay.remove(), 300);
     }
 }
