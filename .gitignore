@@ -54,6 +54,7 @@ Thumbs.db
 
 # Project specific
 *.csv
+!data_for_testing/*.csv
 db_schema.txt
 
 # Temporary files
