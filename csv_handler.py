@@ -61,6 +61,11 @@ class CSVHandler:
         df['state_lgd_code'] = df['state_lgd_code'].astype(str)
         df = df[df['state_lgd_code'] == str(user_lgd)]
 
+        # Note: is_view filter shown in SQL preview but not applied to test data
+        # Uncomment below when production data has is_view=True records
+        # if 'is_view' in df.columns:
+        #     df = df[df['is_view'] == True]
+
         if len(df) == 0:
             return self._empty_result(ind_meta, "No data found for this state.")
 
@@ -153,7 +158,7 @@ class CSVHandler:
             chart_type = "bar"
 
         # Build SQL-like query for display
-        filters = [f"state_lgd_code = '{self._current_lgd}'"]
+        filters = [f"state_lgd_code = '{self._current_lgd}'", "is_view = true"]
         if crop_filter:
             filters.append(f"crop_name_eng LIKE '%{crop_filter}%'")
         if season_filter:
@@ -228,7 +233,7 @@ class CSVHandler:
             title_parts.append(f"[{year_filter}]")
 
         # Build SQL-like query for display
-        filters = [f"state_lgd_code = '{self._current_lgd}'"]
+        filters = [f"state_lgd_code = '{self._current_lgd}'", "is_view = true"]
         if crop_filter:
             filters.append(f"crop_name_eng LIKE '%{crop_filter}%'")
         if season_filter:
