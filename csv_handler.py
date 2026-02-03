@@ -157,22 +157,29 @@ class CSVHandler:
         else:
             chart_type = "bar"
 
-        # Build SQL-like query for display
-        filters = [f"state_lgd_code = '{self._current_lgd}'", "is_view = true"]
+        # Build SQL-like query for display (PostgreSQL format)
+        table_mapping = {
+            "crop_area": "public.crop_sowing_data",
+            "aggregate": "public.aggregate_summary_data",
+            "cultivated": "public.cultivated_summary_data"
+        }
+        db_table = table_mapping.get(ind_meta["table"], f"public.{ind_meta['table']}")
+
+        filters = [f"state_lgd_code::INT = {self._current_lgd}", "is_view = true"]
         if crop_filter:
-            filters.append(f"crop_name_eng LIKE '%{crop_filter}%'")
+            filters.append(f"crop_name_eng ILIKE '%{crop_filter}%'")
         if season_filter:
             filters.append(f"season = '{season_filter}'")
         if year_filter:
             filters.append(f"year = '{year_filter}'")
 
         data_query = {
-            "table": ind_meta["table"],
+            "table": db_table,
             "column": val_col,
             "aggregation": "SUM",
             "group_by": label_col,
             "filters": filters,
-            "sql_preview": f"SELECT {label_col}, SUM({val_col}) FROM {ind_meta['table']} WHERE {' AND '.join(filters)} GROUP BY {label_col} ORDER BY SUM({val_col}) DESC"
+            "sql_preview": f"SELECT {label_col}, COUNT(*) AS record_count, SUM({val_col}::NUMERIC) AS {val_col}_sum FROM {db_table} WHERE {' AND '.join(filters)} GROUP BY {label_col} ORDER BY {val_col}_sum DESC"
         }
 
         return {
@@ -232,22 +239,29 @@ class CSVHandler:
         if year_filter:
             title_parts.append(f"[{year_filter}]")
 
-        # Build SQL-like query for display
-        filters = [f"state_lgd_code = '{self._current_lgd}'", "is_view = true"]
+        # Build SQL-like query for display (PostgreSQL format)
+        table_mapping = {
+            "crop_area": "public.crop_sowing_data",
+            "aggregate": "public.aggregate_summary_data",
+            "cultivated": "public.cultivated_summary_data"
+        }
+        db_table = table_mapping.get(table_name, f"public.{table_name}")
+
+        filters = [f"state_lgd_code::INT = {self._current_lgd}", "is_view = true"]
         if crop_filter:
-            filters.append(f"crop_name_eng LIKE '%{crop_filter}%'")
+            filters.append(f"crop_name_eng ILIKE '%{crop_filter}%'")
         if season_filter:
             filters.append(f"season = '{season_filter}'")
         if year_filter:
             filters.append(f"year = '{year_filter}'")
 
         data_query = {
-            "table": table_name,
+            "table": db_table,
             "column": val_col,
             "aggregation": "SUM",
             "group_by": None,
             "filters": filters,
-            "sql_preview": f"SELECT SUM({val_col}) FROM {table_name} WHERE {' AND '.join(filters)}"
+            "sql_preview": f"SELECT COUNT(*) AS record_count, SUM({val_col}::NUMERIC) AS {val_col}_sum FROM {db_table} WHERE {' AND '.join(filters)}"
         }
 
         return {
