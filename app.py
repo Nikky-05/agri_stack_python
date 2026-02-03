@@ -72,7 +72,19 @@ async def chat(request: UserQuery):
             "timestamp": datetime.now().isoformat(),
             "indicator": intent.get("indicator"),
             "dimension": intent.get("dimension"),
-            "record_count": result.get("record_count", 0)
+            "record_count": result.get("record_count", 0),
+            # Original query text for verification
+            "original_query": request.query,
+            # Parsed query for verification
+            "parsed_query": {
+                "indicator": intent.get("indicator"),
+                "dimension": intent.get("dimension"),
+                "crop_filter": intent.get("crop_filter"),
+                "season_filter": intent.get("season_filter"),
+                "year_filter": intent.get("year_filter"),
+                "comparison_type": intent.get("comparison_type"),
+                "top_n": intent.get("top_n")
+            }
         }
 
         # Add optional metadata
@@ -88,6 +100,8 @@ async def chat(request: UserQuery):
             metadata["plots_count"] = result["plots_count"]
         if result.get("total"):
             metadata["total"] = result["total"]
+        if result.get("data_query"):
+            metadata["data_query"] = result["data_query"]
 
         return {
             "title": result.get("title", "Analysis"),

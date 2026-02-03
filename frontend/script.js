@@ -576,7 +576,82 @@ function renderMetadata(metadata) {
     if (metadata.chart_type) items.push({ label: 'Visualization', value: metadata.chart_type });
     if (metadata.record_count) items.push({ label: 'Records', value: metadata.record_count });
 
-    if (items.length === 0) return '';
+    // Add original query display
+    let originalQueryHtml = '';
+    if (metadata.original_query) {
+        originalQueryHtml = `
+            <div class="original-query-section" style="margin-top:12px;padding:10px 12px;background:linear-gradient(135deg,#f0fdf4,#ecfdf5);border-radius:8px;border:1px solid #bbf7d0">
+                <div style="font-size:11px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">
+                    <i class="fas fa-comment-dots" style="margin-right:4px"></i> Your Query
+                </div>
+                <div style="font-size:13px;color:#166534;font-style:italic">"${escapeHtml(metadata.original_query)}"</div>
+            </div>
+        `;
+    }
+
+    // Add parsed query section for verification
+    let parsedQueryHtml = '';
+    if (metadata.parsed_query) {
+        const pq = metadata.parsed_query;
+        const queryItems = [];
+
+        if (pq.indicator) queryItems.push({ label: 'Indicator', value: pq.indicator });
+        if (pq.dimension) queryItems.push({ label: 'Dimension', value: pq.dimension });
+        if (pq.crop_filter) queryItems.push({ label: 'Crop Filter', value: pq.crop_filter });
+        if (pq.season_filter) queryItems.push({ label: 'Season Filter', value: pq.season_filter });
+        if (pq.year_filter) queryItems.push({ label: 'Year Filter', value: pq.year_filter });
+        if (pq.comparison_type) queryItems.push({ label: 'Comparison', value: pq.comparison_type });
+        if (pq.top_n) queryItems.push({ label: 'Top N', value: pq.top_n });
+
+        if (queryItems.length > 0) {
+            parsedQueryHtml = `
+                <div class="parsed-query-section" style="margin-top:12px;padding-top:12px;border-top:1px dashed #e5e7eb">
+                    <div style="font-size:11px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">
+                        <i class="fas fa-code" style="margin-right:4px"></i> Parsed Query
+                    </div>
+                    ${queryItems.map(item => `
+                        <div class="metadata-row">
+                            <span class="label">${item.label}</span>
+                            <span class="value" style="color:#059669;font-weight:600">${item.value}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+    }
+
+    // Add data query (SQL-like) section
+    let dataQueryHtml = '';
+    if (metadata.data_query) {
+        const dq = metadata.data_query;
+        dataQueryHtml = `
+            <div class="data-query-section" style="margin-top:12px;padding-top:12px;border-top:1px dashed #e5e7eb">
+                <div style="font-size:11px;font-weight:700;color:#6366f1;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">
+                    <i class="fas fa-database" style="margin-right:4px"></i> Data Query
+                </div>
+                <div class="metadata-row">
+                    <span class="label">Table</span>
+                    <span class="value" style="color:#6366f1;font-weight:600">${dq.table}</span>
+                </div>
+                <div class="metadata-row">
+                    <span class="label">Column</span>
+                    <span class="value" style="color:#6366f1;font-weight:600">${dq.column}</span>
+                </div>
+                ${dq.group_by ? `
+                <div class="metadata-row">
+                    <span class="label">Group By</span>
+                    <span class="value" style="color:#6366f1;font-weight:600">${dq.group_by}</span>
+                </div>
+                ` : ''}
+                <div style="margin-top:10px;padding:10px;background:#f5f3ff;border-radius:6px;border:1px solid #c7d2fe">
+                    <div style="font-size:10px;color:#6366f1;font-weight:600;margin-bottom:4px">SQL Preview:</div>
+                    <code style="font-size:11px;color:#4338ca;word-break:break-all;display:block">${escapeHtml(dq.sql_preview)}</code>
+                </div>
+            </div>
+        `;
+    }
+
+    if (items.length === 0 && !parsedQueryHtml && !originalQueryHtml && !dataQueryHtml) return '';
 
     const rows = items.map(item => `
         <div class="metadata-row">
@@ -591,7 +666,10 @@ function renderMetadata(metadata) {
             <span>Details</span>
         </button>
         <div class="metadata-content">
+            ${originalQueryHtml}
             ${rows}
+            ${parsedQueryHtml}
+            ${dataQueryHtml}
         </div>
     `;
 }

@@ -20,10 +20,8 @@ LGD_TO_STATE = {
 }
 
 # ============================================================
-# COMPREHENSIVE ANALYTICS REGISTRY
+# CSV FILE MAPPING
 # ============================================================
-
-# CSV File Mapping
 CSV_FILES = {
     "crop_area": "data_for_testing/data-1768987385851mhCropArea.csv",
     "aggregate": "data_for_testing/data-1768987329067mhAgreegatedData.csv",
@@ -31,37 +29,31 @@ CSV_FILES = {
 }
 
 # ============================================================
-# INDICATORS - What metrics can be queried
+# COMPREHENSIVE INDICATORS REGISTRY
+# Maps query intent to table + column
 # ============================================================
 INDICATORS = {
-    # CROP AREA INDICATORS
+    # ==================== CROP AREA TABLE ====================
     "crop_area": {
         "table": "crop_area",
         "column": "crop_area_approved",
         "title": "Approved Crop Area",
         "unit": "Hectares",
-        "keywords": ["crop area", "approved area", "crop status", "cultivation", "cultivated", "area"]
+        "keywords": ["crop area", "approved area", "approved crop", "crop status", "cultivation area", "crop cultivation"]
     },
     "crop_area_closed": {
         "table": "crop_area",
         "column": "crop_area_closed",
         "title": "Closed Crop Area",
         "unit": "Hectares",
-        "keywords": ["closed area", "crop closed", "closed crop"]
-    },
-    "pending_validation": {
-        "table": "crop_area",
-        "column": "pending",  # Special calculated column
-        "title": "Crops Pending Validation",
-        "unit": "Hectares",
-        "keywords": ["pending validation", "pending approval", "not approved", "awaiting approval", "pending crops", "under validation", "validation pending"]
+        "keywords": ["closed area", "crop closed", "closed crop", "crop_area_closed"]
     },
     "farmers": {
         "table": "crop_area",
         "column": "no_of_farmers",
         "title": "Registered Farmers",
         "unit": "Farmers",
-        "keywords": ["farmer", "farmers", "farmer count", "number of farmers", "total farmers"]
+        "keywords": ["farmer", "farmers", "farmer count", "number of farmers", "total farmers", "farmer participation"]
     },
     "plots": {
         "table": "crop_area",
@@ -70,21 +62,28 @@ INDICATORS = {
         "unit": "Plots",
         "keywords": ["plots recorded", "crop plots", "number of plots"]
     },
+    "pending_validation": {
+        "table": "crop_area",
+        "column": "pending",
+        "title": "Crops Pending Validation",
+        "unit": "Hectares",
+        "keywords": ["pending validation", "pending approval", "not approved", "awaiting approval", "pending crops", "validation pending"]
+    },
 
-    # SURVEY/AGGREGATE INDICATORS
+    # ==================== AGGREGATE TABLE ====================
     "total_plots": {
         "table": "aggregate",
         "column": "total_plots",
         "title": "Total Plots",
         "unit": "Plots",
-        "keywords": ["total plots", "all plots"]
+        "keywords": ["total plots", "all plots", "total number of plots"]
     },
     "assigned_plots": {
         "table": "aggregate",
         "column": "total_assigned_plots",
         "title": "Assigned Plots for Survey",
         "unit": "Plots",
-        "keywords": ["assigned plots", "plots assigned", "assigned for survey"]
+        "keywords": ["assigned plots", "plots assigned", "assigned for survey", "how many plots assigned"]
     },
     "surveyed_plots": {
         "table": "aggregate",
@@ -98,107 +97,114 @@ INDICATORS = {
         "column": "total_plots_unable_to_survey",
         "title": "Unable to Survey Plots",
         "unit": "Plots",
-        "keywords": ["unable to survey", "unsurveyed", "not surveyed", "unable"]
+        "keywords": ["unable to survey", "unsurveyed", "not surveyed", "unable", "unsurveyed plots", "low survey coverage"]
     },
     "survey_approved": {
         "table": "aggregate",
         "column": "total_survey_approved",
         "title": "Surveys Approved",
         "unit": "Surveys",
-        "keywords": ["survey approved", "approved surveys", "approval"]
+        "keywords": ["survey approved", "approved surveys", "approval", "surveys approved", "approval counts"]
     },
     "survey_under_review": {
         "table": "aggregate",
         "column": "total_survey_under_review",
         "title": "Surveys Under Review",
         "unit": "Surveys",
-        "keywords": ["under review", "review", "pending review"]
+        "keywords": ["under review", "review", "pending review", "surveys pending", "currently under review"]
     },
     "today_survey": {
         "table": "aggregate",
         "column": "total_today_survey",
         "title": "Today's Survey Count",
         "unit": "Surveys",
-        "keywords": ["today survey", "today's count", "daily survey"]
+        "keywords": ["today survey", "today's count", "daily survey", "today's survey"]
     },
     "surveyors": {
         "table": "aggregate",
         "column": "total_no_of_surveyors",
         "title": "Number of Surveyors",
         "unit": "Surveyors",
-        "keywords": ["surveyors", "surveyor count"]
+        "keywords": ["surveyors", "surveyor count", "number of surveyors"]
     },
 
-    # CULTIVATED SUMMARY INDICATORS
+    # ==================== CULTIVATED TABLE ====================
     "surveyed_area": {
         "table": "cultivated",
         "column": "total_surveyed_area",
         "title": "Total Surveyed Area",
         "unit": "Hectares",
-        "keywords": ["surveyed area", "agricultural area", "surveyed agricultural", "survey summary", "overall survey", "total survey area", "survey area"]
+        "keywords": ["surveyed area", "agricultural area", "cultivated area", "cultivated summary", "total surveyed", "survey area", "cultivated land"]
     },
     "surveyable_area": {
         "table": "cultivated",
         "column": "total_surveyable_area",
         "title": "Total Surveyable Area",
         "unit": "Hectares",
-        "keywords": ["surveyable area", "surveyable"]
+        "keywords": ["surveyable area", "surveyable", "total surveyable"]
     },
     "fallow_area": {
         "table": "cultivated",
         "column": "total_fallow_area",
         "title": "Fallow Area",
         "unit": "Hectares",
-        "keywords": ["fallow", "fallow area", "fallow land"]
+        "keywords": ["fallow", "fallow area", "fallow land", "uncultivated land"]
     },
     "na_area": {
         "table": "cultivated",
         "column": "total_na_area",
         "title": "NA Area",
         "unit": "Hectares",
-        "keywords": ["na area", "not available", "na"]
+        "keywords": ["na area", "not available", "na", "classified as na"]
     },
     "harvested_area": {
         "table": "cultivated",
         "column": "total_harvested_area",
         "title": "Harvested Area",
         "unit": "Hectares",
-        "keywords": ["harvested", "harvest area", "harvested area"]
+        "keywords": ["harvested", "harvest area", "harvested area", "total harvested"]
     },
     "irrigated_area": {
         "table": "cultivated",
         "column": "total_irrigated_area",
         "title": "Irrigated Area",
         "unit": "Hectares",
-        "keywords": ["irrigated", "irrigation", "irrigated area"]
+        "keywords": ["irrigated", "irrigation", "irrigated area", "irrigated land"]
     },
     "unirrigated_area": {
         "table": "cultivated",
         "column": "total_unirrigated_area",
         "title": "Unirrigated Area",
         "unit": "Hectares",
-        "keywords": ["unirrigated", "rainfed", "unirrigated area"]
+        "keywords": ["unirrigated", "rainfed", "unirrigated area", "rain-fed"]
     },
     "perennial_area": {
         "table": "cultivated",
         "column": "total_perennial_crop_area",
         "title": "Perennial Crop Area",
         "unit": "Hectares",
-        "keywords": ["perennial", "perennial crop"]
+        "keywords": ["perennial", "perennial crop", "perennial area"]
     },
     "biennial_area": {
         "table": "cultivated",
         "column": "total_biennial_crop_area",
         "title": "Biennial Crop Area",
         "unit": "Hectares",
-        "keywords": ["biennial", "biennial crop"]
+        "keywords": ["biennial", "biennial crop", "biennial area"]
     },
     "seasonal_area": {
         "table": "cultivated",
         "column": "total_seasonal_crop_area",
         "title": "Seasonal Crop Area",
         "unit": "Hectares",
-        "keywords": ["seasonal", "seasonal crop"]
+        "keywords": ["seasonal", "seasonal crop", "seasonal area"]
+    },
+    "surveyed_plots_cult": {
+        "table": "cultivated",
+        "column": "total_surveyed_plots",
+        "title": "Total Surveyed Plots",
+        "unit": "Plots",
+        "keywords": ["total surveyed plots"]
     }
 }
 
@@ -209,22 +215,22 @@ DIMENSIONS = {
     "district": {
         "column": "district_lgd_code",
         "title": "District",
-        "keywords": ["district", "district-wise", "by district", "districts"]
+        "keywords": ["district", "district-wise", "by district", "districts", "districtwise"]
     },
     "season": {
         "column": "season",
         "title": "Season",
-        "keywords": ["season", "season-wise", "by season", "kharif", "rabi", "summer", "seasonal"]
+        "keywords": ["season", "season-wise", "by season", "kharif", "rabi", "summer", "seasonal", "seasonwise"]
     },
     "crop": {
         "column": "crop_name_eng",
         "title": "Crop",
-        "keywords": ["crop", "crop-wise", "by crop", "crops", "top crops", "top 5 crops"]
+        "keywords": ["crop", "crop-wise", "by crop", "crops", "top crops", "top 5 crops", "cropwise", "which crops"]
     },
     "year": {
         "column": "year",
         "title": "Year",
-        "keywords": ["year", "year-wise", "by year", "yearly", "annual"]
+        "keywords": ["year", "year-wise", "by year", "yearly", "annual", "yearwise"]
     },
     "irrigation": {
         "column": "irrigation_source",
@@ -234,14 +240,20 @@ DIMENSIONS = {
     "village": {
         "column": "village_lgd_code",
         "title": "Village",
-        "keywords": ["village", "village-wise", "by village"]
+        "keywords": ["village", "village-wise", "by village", "villagewise"]
+    },
+    "state": {
+        "column": "state_lgd_code",
+        "title": "State",
+        "keywords": ["state", "state-wise", "by state", "statewise", "across states"]
     }
 }
 
-# Keywords that trigger comparison/distribution
+# Keywords that trigger distribution/breakdown
 DISTRIBUTION_KEYWORDS = [
     "distribution", "breakdown", "split", "comparison", "compare",
-    "share", "by", "wise", "top", "highest", "lowest", "which"
+    "share", "by", "wise", "top", "highest", "lowest", "which",
+    "across", "summary", "trend"
 ]
 
 # Crop names for detection
@@ -260,9 +272,9 @@ SEASON_NAMES = ["kharif", "rabi", "summer", "zaid"]
 # Conversation responses (fallback)
 CONVERSATION_RESPONSES = {
     "greeting": [
-        "Hello! I'm your AgriStack Analytics Assistant. Ask me about crop data, survey progress, farmer statistics, or land usage.",
+        "Hello! I'm your AgriStack Analytics Assistant. I can help you with crop area analysis, survey progress, farmer statistics, district comparisons, and much more. What would you like to know?",
     ],
     "help": [
-        "I can help with: crop area analysis, survey progress, farmer counts, irrigation data, district comparisons, and seasonal trends."
+        "I can help with: crop area analysis, survey progress, farmer counts, irrigation data, district-wise comparisons, season-wise trends, and year-wise analysis. Try asking questions like 'Show district-wise cultivated area' or 'What is the total crop area for Kharif season?'"
     ]
 }
