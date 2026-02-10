@@ -376,6 +376,23 @@ class NLPHandler:
             "distribution", "comparison", "trend", "top", "highest", "lowest"
         }
 
+        # Also check crop names from config as valid agri terms
+        agri_crop_set = set(CROP_NAMES)
+
+        # General knowledge / definition patterns - "what is X", "define X", "who is X"
+        general_knowledge_patterns = [
+            r"^what is\b", r"^what are\b", r"^who is\b", r"^who are\b",
+            r"^define\b", r"^meaning of\b", r"^tell me about\b",
+            r"^explain\b", r"^describe\b", r"^what does .+ mean",
+        ]
+
+        for pattern in general_knowledge_patterns:
+            if re.search(pattern, q):
+                # Check if the rest of the query is about agriculture
+                if words & agri_keywords or words & agri_crop_set:
+                    return False  # "what is crop area" is valid
+                return True  # "what is rubber" is off-topic
+
         # Off-topic patterns - things we definitely can't answer
         off_topic_patterns = [
             # Weather
@@ -419,13 +436,8 @@ class NLPHandler:
                     return False  # Has agri context, not off-topic
                 return True  # Off-topic
 
-        # If query has no agriculture keywords at all, it might be off-topic
-        if not (words & agri_keywords):
-            # Check if it's a very short/generic query
-            if len(words) <= 3:
-                # Allow short queries that might be partial
-                return False
-            # If longer query with no agri keywords, likely off-topic
+        # If query has no agriculture keywords at all, it's likely off-topic
+        if not (words & agri_keywords) and not (words & agri_crop_set):
             return True
 
         return False
@@ -433,11 +445,11 @@ class NLPHandler:
     def _get_suggested_queries(self) -> List[str]:
         """Return suggested queries related to available agriculture data"""
         return [
-            "Show total crop area",
-            "District-wise cultivated area",
-            "Top 10 crops by area",
+            "Show total cultivated crop area",
             "How many farmers are registered?",
-            "Crop area for Kharif season"
+            "District-wise crop area distribution",
+            "Top 10 crops by cultivated area",
+            "Show survey progress for plots"
         ]
 
     def _detect_year(self, q: str) -> Optional[str]:

@@ -62,7 +62,7 @@ async def chat(request: UserQuery):
         return {
             "title": "Query Not Supported",
             "chart_data": {"type": "message", "values": [], "labels": [], "unit": ""},
-            "narration": "I'm specialized in agriculture and farming data analytics. I can help you with crop areas, farmer statistics, survey progress, district-wise analysis, and seasonal trends.",
+            "narration": "I only have crop data and farmer data available. Please ask questions related to crop area, farmer statistics, survey progress, district-wise analysis, or seasonal trends.",
             "metadata": {
                 "intent_type": "off_topic",
                 "state": user_state,
