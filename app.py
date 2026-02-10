@@ -56,6 +56,21 @@ async def chat(request: UserQuery):
             }
         }
 
+    # 2.5 Handle Off-Topic Queries
+    if intent.get("mode") == "off_topic":
+        suggested = intent.get("suggested_queries", [])
+        return {
+            "title": "Query Not Supported",
+            "chart_data": {"type": "message", "values": [], "labels": [], "unit": ""},
+            "narration": "I'm specialized in agriculture and farming data analytics. I can help you with crop areas, farmer statistics, survey progress, district-wise analysis, and seasonal trends.",
+            "metadata": {
+                "intent_type": "off_topic",
+                "state": user_state,
+                "original_query": intent.get("original_query", request.query)
+            },
+            "suggested_queries": suggested
+        }
+
     # 3. Execute Analytics
     try:
         result = csv_engine.execute_analytics(intent, user_lgd)
@@ -78,6 +93,7 @@ async def chat(request: UserQuery):
             # Parsed query for verification
             "parsed_query": {
                 "indicator": intent.get("indicator"),
+                "indicators": intent.get("indicators"),  # For multi-summary
                 "dimension": intent.get("dimension"),
                 "crop_filter": intent.get("crop_filter"),
                 "season_filter": intent.get("season_filter"),
@@ -103,15 +119,22 @@ async def chat(request: UserQuery):
         if result.get("data_query"):
             metadata["data_query"] = result["data_query"]
 
+        # Build chart_data based on chart_type
+        chart_data = {
+            "type": result.get("chart_type", "kpi"),
+            "labels": result.get("labels", []),
+            "values": result.get("values", []),
+            "unit": result.get("unit", ""),
+            "percentages": result.get("percentages", [])
+        }
+
+        # For multi_kpi, include KPIs array
+        if result.get("chart_type") == "multi_kpi":
+            chart_data["kpis"] = result.get("kpis", [])
+
         return {
             "title": result.get("title", "Analysis"),
-            "chart_data": {
-                "type": result.get("chart_type", "kpi"),
-                "labels": result.get("labels", []),
-                "values": result.get("values", []),
-                "unit": result.get("unit", ""),
-                "percentages": result.get("percentages", [])
-            },
+            "chart_data": chart_data,
             "narration": narration,
             "metadata": metadata
         }

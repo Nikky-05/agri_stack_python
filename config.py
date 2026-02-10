@@ -37,9 +37,10 @@ INDICATORS = {
     "crop_area": {
         "table": "crop_area",
         "column": "crop_area_approved",
-        "title": "Approved Crop Area",
+        "title": "Cultivated Crop Area",
         "unit": "Hectares",
-        "keywords": ["crop area", "approved area", "approved crop", "crop status", "cultivation area", "crop cultivation"]
+        "keywords": ["crop area", "approved area", "approved crop", "crop status", "cultivation area", "crop cultivation",
+                     "cultivated area", "cultivated land", "cultivated", "cultivation", "highest cultivated", "total cultivated"]
     },
     "crop_area_closed": {
         "table": "crop_area",
@@ -95,9 +96,9 @@ INDICATORS = {
     "unsurveyed_plots": {
         "table": "aggregate",
         "column": "total_plots_unable_to_survey",
-        "title": "Unable to Survey Plots",
+        "title": "Unsurveyed Plots",
         "unit": "Plots",
-        "keywords": ["unable to survey", "unsurveyed", "not surveyed", "unable", "unsurveyed plots", "low survey coverage"]
+        "keywords": ["unable to survey", "unsurveyed", "not surveyed", "unable", "unsurveyed plots", "low survey coverage", "plots not surveyed"]
     },
     "survey_approved": {
         "table": "aggregate",
@@ -134,7 +135,7 @@ INDICATORS = {
         "column": "total_surveyed_area",
         "title": "Total Surveyed Area",
         "unit": "Hectares",
-        "keywords": ["surveyed area", "agricultural area", "cultivated area", "cultivated summary", "total surveyed", "survey area", "cultivated land"]
+        "keywords": ["surveyed area", "survey area", "total surveyed", "land surveyed", "surveyed land", "area surveyed"]
     },
     "surveyable_area": {
         "table": "cultivated",

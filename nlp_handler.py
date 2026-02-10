@@ -46,6 +46,14 @@ class NLPHandler:
         q = query.lower().strip()
         words = set(re.findall(r'\b\w+\b', q))
 
+        # 0. Check for OFF-TOPIC queries first
+        if self._is_off_topic(q, words):
+            return {
+                "mode": "off_topic",
+                "original_query": query,
+                "suggested_queries": self._get_suggested_queries()
+            }
+
         # 1. Check for conversation mode (greetings, help)
         greetings = {"hi", "hello", "hey", "greetings", "hellow", "helo", "hii", "hai", "namaste"}
         help_words = {"help", "guide", "what can"}
@@ -55,26 +63,57 @@ class NLPHandler:
         if words & help_words and len(words) <= 8:
             return {"mode": "conversation", "sub_type": "help"}
 
-        # 2. Detect specific year filter FIRST
+        # 2. Check for MULTI-INDICATOR summary queries FIRST
+        # e.g., "summary of survey, crop area, and cultivated area"
+        multi_indicators = self._detect_multi_indicators(q)
+        if multi_indicators and len(multi_indicators) > 1:
+            year_filter = self._detect_year(q)
+            season_filter = self._detect_season(q)
+            return {
+                "mode": "analytics",
+                "intent_type": "multi_summary",
+                "indicators": multi_indicators,
+                "year_filter": year_filter,
+                "season_filter": season_filter,
+                "crop_filter": None,
+                "dimension": None,
+                "comparison_type": None,
+                "top_n": 10
+            }
+
+        # 3. Detect specific year filter
         year_filter = self._detect_year(q)
 
-        # 3. Detect dimension (how to group data) - IMPORTANT for correct visualization
-        dimension = self._detect_dimension(q)
+        # 4. Check if this is a SUMMARY request (should NOT show distribution)
+        is_summary_request = self._is_summary_request(q)
 
-        # 4. Detect indicator (what metric to show)
+        # 5. Detect dimension (how to group data) - ONLY if not a summary request
+        dimension = None
+        if not is_summary_request:
+            dimension = self._detect_dimension(q)
+
+        # 6. Detect indicator (what metric to show)
         indicator = self._detect_indicator(q)
 
-        # 5. Detect filters
+        # 7. Detect filters
         crop_filter = self._detect_crop(q)
         season_filter = self._detect_season(q)
 
-        # 6. Detect comparison type
+        # 8. Detect comparison type
         comparison_type = self._detect_comparison(q)
 
-        # 7. Detect top N
+        # 9. Detect top N
         top_n = self._detect_top_n(q)
 
-        # 8. Determine intent type
+        # 10. AUTO-DETECT: If asking about crop area without specific crops, show by crop
+        # e.g., "total crop area", "provide crop area", "show crop area"
+        if indicator == "crop_area" and not crop_filter and not dimension:
+            # Check if query is asking for general crop area (not crop-wise explicitly mentioned)
+            crop_area_keywords = ["crop area", "cultivated area", "cultivation", "total crop", "all crop"]
+            if any(kw in q for kw in crop_area_keywords):
+                dimension = "crop"  # Auto-set to show breakdown by crop
+
+        # 11. Determine intent type
         if comparison_type:
             intent_type = "comparison"
         elif dimension:
@@ -94,6 +133,66 @@ class NLPHandler:
             "intent_type": intent_type
         }
 
+    def _is_summary_request(self, q: str) -> bool:
+        """Detect if query is asking for aggregate summary (KPIs), not distribution"""
+
+        # Keywords that indicate user wants TOTALS/KPIs, not breakdown
+        summary_keywords = [
+            "summary", "total", "overall", "aggregate", "national-level",
+            "national level", "state-level", "state level", "provide a",
+            "give me", "show me total", "what is total", "how much total"
+        ]
+
+        # If query contains summary keywords, return True
+        for kw in summary_keywords:
+            if kw in q:
+                return True
+
+        return False
+
+    def _detect_multi_indicators(self, q: str) -> Optional[List[str]]:
+        """Detect if query asks for multiple metrics/indicators"""
+
+        indicators_found = []
+
+        # Check for survey-related
+        if any(w in q for w in ["survey", "surveyed", "surveying"]):
+            indicators_found.append("surveyed_plots")
+
+        # Check for crop area
+        if any(w in q for w in ["crop area", "crop-area", "sowing"]):
+            indicators_found.append("crop_area")
+
+        # Check for cultivated area
+        if any(w in q for w in ["cultivated", "cultivation"]):
+            indicators_found.append("crop_area")  # cultivated = crop_area_approved
+
+        # Check for farmers
+        if "farmer" in q:
+            indicators_found.append("farmers")
+
+        # Check for plots
+        if "plot" in q and "survey" not in q:
+            indicators_found.append("total_plots")
+
+        # Check for irrigated
+        if "irrigat" in q:
+            indicators_found.append("irrigated_area")
+
+        # Check for fallow
+        if "fallow" in q:
+            indicators_found.append("fallow_area")
+
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_indicators = []
+        for ind in indicators_found:
+            if ind not in seen:
+                seen.add(ind)
+                unique_indicators.append(ind)
+
+        return unique_indicators if len(unique_indicators) > 1 else None
+
     def _detect_indicator(self, q: str) -> str:
         """Detect which indicator/metric is being asked - PRIORITY BASED"""
 
@@ -103,9 +202,18 @@ class NLPHandler:
             (["pending validation", "pending approval", "not approved", "awaiting approval",
               "validation pending", "crops pending", "pending crops", "under validation"], "pending_validation"),
 
-            # Cultivated/Surveyed Area queries (from cultivated table)
-            (["cultivated area", "cultivated summary", "cultivation summary", "cultivated land",
-              "total surveyed area", "surveyed area", "survey area", "agricultural area"], "surveyed_area"),
+            # Cultivated Area queries (from crop_area table - actual cultivation)
+            (["cultivated area", "cultivated land", "cultivation area", "total cultivated",
+              "highest cultivated", "cultivation summary", "crop cultivation", "land cultivated"], "crop_area"),
+
+            # Surveyed Area queries (from cultivated table - survey coverage)
+            (["surveyed area", "survey area", "total surveyed", "land surveyed",
+              "area surveyed", "surveyed land"], "surveyed_area"),
+
+            # UNSURVEYED Plots queries (MUST come BEFORE surveyed to match first)
+            (["unsurveyed plots", "unsurveyed", "not surveyed", "unable to survey",
+              "plots not surveyed", "plots unsurveyed", "unservey", "un-surveyed",
+              "plots unable", "unable survey"], "unsurveyed_plots"),
 
             # Survey Progress queries (from aggregate table)
             (["survey progress", "plots surveyed", "surveyed plots", "survey status",
@@ -158,10 +266,12 @@ class NLPHandler:
             return best
 
         # PRIORITY 3: Default based on context
-        if "survey" in q:
+        if "survey" in q and "area" not in q:
             return "surveyed_plots"
-        if "cultivat" in q:
+        if "survey" in q and "area" in q:
             return "surveyed_area"
+        if "cultivat" in q:
+            return "crop_area"  # Cultivated = crop area
         if "farmer" in q:
             return "farmers"
         if "plot" in q:
@@ -221,12 +331,19 @@ class NLPHandler:
 
         return None
 
-    def _detect_crop(self, q: str) -> Optional[str]:
-        """Detect specific crop name"""
+    def _detect_crop(self, q: str) -> Optional[List[str]]:
+        """Detect specific crop name(s) - returns list if multiple crops found"""
+        found_crops = []
         for crop in CROP_NAMES:
             if crop in q:
-                return crop.title()
-        return None
+                found_crops.append(crop.title())
+
+        if not found_crops:
+            return None
+        elif len(found_crops) == 1:
+            return found_crops[0]  # Return single string for backward compatibility
+        else:
+            return found_crops  # Return list when multiple crops
 
     def _detect_season(self, q: str) -> Optional[str]:
         """Detect season filter"""
@@ -235,8 +352,104 @@ class NLPHandler:
                 return season.title()
         return None
 
+    def _is_off_topic(self, q: str, words: set) -> bool:
+        """Detect if query is off-topic (not related to agriculture/farming data)"""
+
+        # Agriculture-related keywords that indicate valid queries
+        agri_keywords = {
+            # Crops
+            "crop", "crops", "wheat", "rice", "maize", "sorghum", "sugarcane", "cotton",
+            "soybean", "groundnut", "onion", "banana", "mango", "chickpea", "gram",
+            "bajra", "jowar", "ragi", "mustard", "sunflower", "potato", "tomato",
+            # Farming terms
+            "farmer", "farmers", "farm", "farming", "agriculture", "agricultural",
+            "cultivate", "cultivated", "cultivation", "sowing", "harvest", "harvested",
+            "irrigation", "irrigated", "unirrigated", "fallow", "land", "area",
+            # Survey terms
+            "survey", "surveyed", "surveyor", "plot", "plots", "village",
+            # Seasons
+            "kharif", "rabi", "summer", "zaid", "season",
+            # Administrative
+            "district", "state", "year", "annual",
+            # Metrics
+            "total", "summary", "count", "number", "how many", "percentage",
+            "distribution", "comparison", "trend", "top", "highest", "lowest"
+        }
+
+        # Off-topic patterns - things we definitely can't answer
+        off_topic_patterns = [
+            # Weather
+            "weather", "temperature", "rain", "rainfall", "forecast", "climate today",
+            "hot", "cold", "sunny", "cloudy", "humidity",
+            # Sports
+            "cricket", "football", "soccer", "match", "score", "ipl", "world cup",
+            "player", "team", "sports",
+            # Entertainment
+            "movie", "film", "song", "music", "actor", "actress", "celebrity",
+            "netflix", "youtube", "video",
+            # General knowledge
+            "capital", "president", "prime minister", "country", "population",
+            "history", "geography", "science", "math",
+            # Technology
+            "code", "programming", "software", "app", "website", "computer",
+            "phone", "mobile", "laptop",
+            # Personal
+            "your name", "who are you", "what are you", "how old",
+            # Time/Date (non-agriculture)
+            "time now", "what time", "today date", "current time",
+            # News
+            "news", "headlines", "latest news", "breaking",
+            # Shopping/Products
+            "price of", "buy", "sell", "amazon", "flipkart", "shopping",
+            # Travel
+            "flight", "train", "bus", "ticket", "hotel", "travel",
+            # Food (non-crop)
+            "recipe", "cook", "restaurant", "food delivery",
+            # Health
+            "doctor", "hospital", "medicine", "disease", "symptoms",
+            # Finance (non-agriculture)
+            "stock", "share market", "bitcoin", "crypto", "bank"
+        ]
+
+        # Check if query contains any off-topic pattern
+        for pattern in off_topic_patterns:
+            if pattern in q:
+                # But check if it also has agriculture context
+                if words & agri_keywords:
+                    return False  # Has agri context, not off-topic
+                return True  # Off-topic
+
+        # If query has no agriculture keywords at all, it might be off-topic
+        if not (words & agri_keywords):
+            # Check if it's a very short/generic query
+            if len(words) <= 3:
+                # Allow short queries that might be partial
+                return False
+            # If longer query with no agri keywords, likely off-topic
+            return True
+
+        return False
+
+    def _get_suggested_queries(self) -> List[str]:
+        """Return suggested queries related to available agriculture data"""
+        return [
+            "Show total crop area",
+            "District-wise cultivated area",
+            "Top 10 crops by area",
+            "How many farmers are registered?",
+            "Crop area for Kharif season"
+        ]
+
     def _detect_year(self, q: str) -> Optional[str]:
-        """Detect specific year filter like 2021-2022, 2022-23, etc."""
+        """Detect specific year filter like 2021-2022, 2022-23, current year, etc."""
+
+        # Check for "current year" first
+        from datetime import datetime
+        if any(phrase in q for phrase in ["current year", "this year", "present year"]):
+            now = datetime.now()
+            if now.month >= 4:  # April onwards is new agri year
+                return f"{now.year}-{now.year + 1}"
+            return f"{now.year - 1}-{now.year}"
 
         # Match patterns like "2021-2022", "2022-23", "2021-22"
         patterns = [
@@ -343,6 +556,10 @@ Write the narration now:"""
     def _generate_template_narration(self, data: Dict, user_state: str) -> str:
         """Generate template-based narration"""
 
+        # Handle multi_kpi (summary) responses
+        if data.get("chart_type") == "multi_kpi":
+            return self._generate_multi_kpi_narration(data, user_state)
+
         title = data.get("title", "Data Analysis")
         unit = data.get("unit", "")
         values = data.get("values", [])
@@ -401,6 +618,46 @@ Write the narration now:"""
                 narration += f" The top 3 {dimension.lower() if dimension else 'categories'} account for {top3_pct:.1f}% of the total, indicating concentration."
             else:
                 narration += f" Distribution appears relatively balanced across {dimension.lower() if dimension else 'categories'}."
+
+        return narration
+
+    def _generate_multi_kpi_narration(self, data: Dict, user_state: str) -> str:
+        """Generate narration for multi-KPI summary"""
+
+        kpis = data.get("kpis", [])
+        year_filter = data.get("year_filter", "")
+        season_filter = data.get("season_filter", "")
+
+        if not kpis:
+            return f"No summary data available for {user_state}."
+
+        # Build narration
+        narration = f"Here is the national-level summary for {user_state}"
+        if year_filter:
+            narration += f" ({year_filter})"
+        if season_filter:
+            narration += f" in {season_filter} season"
+        narration += ": "
+
+        # Add KPI summaries
+        kpi_parts = []
+        for kpi in kpis:
+            value = kpi.get("value", 0)
+            title = kpi.get("title", "").lower()
+            unit = kpi.get("unit", "")
+
+            if value >= 10000000:
+                formatted = f"{value/10000000:.2f} Cr"
+            elif value >= 100000:
+                formatted = f"{value/100000:.2f} L"
+            elif value >= 1000:
+                formatted = f"{value/1000:.1f}K"
+            else:
+                formatted = f"{value:,.0f}"
+
+            kpi_parts.append(f"{title}: {formatted} {unit}")
+
+        narration += "; ".join(kpi_parts) + "."
 
         return narration
 

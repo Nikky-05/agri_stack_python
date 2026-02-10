@@ -40,6 +40,10 @@ class CSVHandler:
         # Store current LGD for query building
         self._current_lgd = user_lgd
 
+        # Handle MULTI-INDICATOR queries (summary with multiple KPIs)
+        if intent.get("intent_type") == "multi_summary":
+            return self._handle_multi_summary(intent, user_lgd)
+
         indicator_key = intent.get("indicator", "crop_area")
         dimension_key = intent.get("dimension")
         crop_filter = intent.get("crop_filter")
@@ -69,9 +73,15 @@ class CSVHandler:
         if len(df) == 0:
             return self._empty_result(ind_meta, "No data found for this state.")
 
-        # Apply crop filter if specified
+        # Apply crop filter if specified (handles single crop or multiple crops)
         if crop_filter and 'crop_name_eng' in df.columns:
-            df_filtered = df[df['crop_name_eng'].str.lower().str.contains(crop_filter.lower(), na=False)]
+            if isinstance(crop_filter, list):
+                # Multiple crops - use OR condition
+                crop_pattern = '|'.join([c.lower() for c in crop_filter])
+                df_filtered = df[df['crop_name_eng'].str.lower().str.contains(crop_pattern, na=False, regex=True)]
+            else:
+                # Single crop
+                df_filtered = df[df['crop_name_eng'].str.lower().str.contains(crop_filter.lower(), na=False)]
             if len(df_filtered) > 0:
                 df = df_filtered
 
@@ -141,7 +151,10 @@ class CSVHandler:
         # Build title
         title_parts = []
         if crop_filter:
-            title_parts.append(crop_filter)
+            if isinstance(crop_filter, list):
+                title_parts.append(" & ".join(crop_filter))
+            else:
+                title_parts.append(crop_filter)
         title_parts.append(ind_meta['title'])
         title_parts.append(f"by {dim_meta['title']}")
         if season_filter:
@@ -151,6 +164,12 @@ class CSVHandler:
 
         # Determine chart type
         if dimension_key == "year":
+            chart_type = "bar"
+        elif dimension_key == "crop":
+            # Always use bar chart for crop breakdown
+            chart_type = "bar"
+        elif crop_filter and isinstance(crop_filter, list):
+            # Multiple specific crops requested - use bar chart to compare
             chart_type = "bar"
         elif len(values) <= 5:
             chart_type = "pie"
@@ -167,7 +186,11 @@ class CSVHandler:
 
         filters = [f"state_lgd_code::INT = {self._current_lgd}", "is_view = true"]
         if crop_filter:
-            filters.append(f"crop_name_eng ILIKE '%{crop_filter}%'")
+            if isinstance(crop_filter, list):
+                crop_conditions = [f"crop_name_eng ILIKE '%{c}%'" for c in crop_filter]
+                filters.append(f"({' OR '.join(crop_conditions)})")
+            else:
+                filters.append(f"crop_name_eng ILIKE '%{crop_filter}%'")
         if season_filter:
             filters.append(f"season = '{season_filter}'")
         if year_filter:
@@ -232,7 +255,10 @@ class CSVHandler:
         # Build title
         title_parts = []
         if crop_filter:
-            title_parts.append(crop_filter)
+            if isinstance(crop_filter, list):
+                title_parts.append(" & ".join(crop_filter))
+            else:
+                title_parts.append(crop_filter)
         title_parts.append(ind_meta['title'])
         if season_filter:
             title_parts.append(f"({season_filter})")
@@ -249,7 +275,11 @@ class CSVHandler:
 
         filters = [f"state_lgd_code::INT = {self._current_lgd}", "is_view = true"]
         if crop_filter:
-            filters.append(f"crop_name_eng ILIKE '%{crop_filter}%'")
+            if isinstance(crop_filter, list):
+                crop_conditions = [f"crop_name_eng ILIKE '%{c}%'" for c in crop_filter]
+                filters.append(f"({' OR '.join(crop_conditions)})")
+            else:
+                filters.append(f"crop_name_eng ILIKE '%{crop_filter}%'")
         if season_filter:
             filters.append(f"season = '{season_filter}'")
         if year_filter:
@@ -393,6 +423,82 @@ class CSVHandler:
                 }
 
         return self._empty_result(ind_meta, "Comparison data not available.")
+
+    def _handle_multi_summary(self, intent: Dict[str, Any], user_lgd: str) -> Dict[str, Any]:
+        """Handle multi-indicator summary queries - returns multiple KPIs"""
+
+        indicators = intent.get("indicators", [])
+        year_filter = intent.get("year_filter")
+        season_filter = intent.get("season_filter")
+
+        kpis = []
+
+        for indicator_key in indicators:
+            if indicator_key not in INDICATORS:
+                continue
+
+            ind_meta = INDICATORS[indicator_key]
+            table_name = ind_meta["table"]
+            val_col = ind_meta["column"]
+
+            # Load table
+            df = self._load_csv(table_name)
+            df['state_lgd_code'] = df['state_lgd_code'].astype(str)
+            df = df[df['state_lgd_code'] == str(user_lgd)]
+
+            # Apply year filter
+            if year_filter and 'year' in df.columns:
+                df['year'] = df['year'].astype(str)
+                df_filtered = df[df['year'] == year_filter]
+                if len(df_filtered) > 0:
+                    df = df_filtered
+
+            # Apply season filter
+            if season_filter and 'season' in df.columns:
+                df_filtered = df[df['season'].str.lower() == season_filter.lower()]
+                if len(df_filtered) > 0:
+                    df = df_filtered
+
+            # Calculate total
+            if val_col in df.columns:
+                total = float(df[val_col].sum())
+            else:
+                total = 0
+
+            # Get additional stats for this indicator
+            extra_stats = {}
+            if table_name == "crop_area":
+                if 'no_of_farmers' in df.columns:
+                    extra_stats['farmers_count'] = int(df['no_of_farmers'].sum())
+                if 'no_of_plots' in df.columns:
+                    extra_stats['plots_count'] = int(df['no_of_plots'].sum())
+                if 'crop_name_eng' in df.columns:
+                    extra_stats['unique_crops'] = df['crop_name_eng'].nunique()
+
+            kpis.append({
+                "indicator": indicator_key,
+                "title": ind_meta["title"],
+                "unit": ind_meta["unit"],
+                "value": total,
+                "record_count": len(df),
+                **extra_stats
+            })
+
+        # Build title
+        title_parts = ["National-Level Summary"]
+        if year_filter:
+            title_parts.append(f"[{year_filter}]")
+        if season_filter:
+            title_parts.append(f"({season_filter})")
+
+        return {
+            "title": " ".join(title_parts),
+            "chart_type": "multi_kpi",
+            "kpis": kpis,
+            "year_filter": year_filter,
+            "season_filter": season_filter,
+            "record_count": sum(k.get("record_count", 0) for k in kpis)
+        }
 
     def _empty_result(self, ind_meta: Dict, note: str) -> Dict[str, Any]:
         """Generate empty result with note"""

@@ -113,6 +113,16 @@ function setupEventListeners(elements) {
             }
         }
 
+        // Suggested query cards (for off-topic responses)
+        const suggestedCard = e.target.closest('.suggested-query-card');
+        if (suggestedCard) {
+            const query = suggestedCard.dataset.query;
+            if (query && chatInput) {
+                chatInput.value = query;
+                handleSendMessage(elements);
+            }
+        }
+
         // Metadata toggle
         const metaToggle = e.target.closest('.metadata-toggle');
         if (metaToggle) {
@@ -262,12 +272,21 @@ function renderSmartResponse(container, data) {
             content = renderConversation(data);
             break;
 
+        case 'off_topic':
+            content = renderOffTopic(data);
+            break;
+
         case 'unauthorized_analytics':
             content = renderUnauthorized(data);
             break;
 
         case 'analytics':
-            if (chartType === 'message' || !data.chart_data?.values?.length) {
+            // Check for multi_kpi (has kpis array) or regular charts (has values array)
+            const hasData = chartType === 'multi_kpi'
+                ? data.chart_data?.kpis?.length > 0
+                : data.chart_data?.values?.length > 0;
+
+            if (chartType === 'message' || !hasData) {
                 content = renderNoData(data);
             } else {
                 content = renderAnalytics(data);
@@ -302,6 +321,47 @@ function renderConversation(data) {
         <div class="msg-conversation">
             <div class="msg-conversation-icon"><i class="fas fa-comments"></i></div>
             <div class="msg-conversation-text">${formatted}</div>
+        </div>
+    `;
+}
+
+// ============================================================
+// OFF-TOPIC RENDERER
+// ============================================================
+
+function renderOffTopic(data) {
+    const suggestedQueries = data.suggested_queries || [];
+
+    let suggestionsHtml = '';
+    if (suggestedQueries.length > 0) {
+        const queryCards = suggestedQueries.map(query => `
+            <div class="suggested-query-card" data-query="${escapeHtml(query)}" style="padding:10px 14px;background:linear-gradient(135deg,#f0fdf4,#ecfdf5);border:1px solid #bbf7d0;border-radius:8px;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:8px">
+                <i class="fas fa-arrow-right" style="color:#059669;font-size:10px"></i>
+                <span style="color:#166534;font-size:13px">${escapeHtml(query)}</span>
+            </div>
+        `).join('');
+
+        suggestionsHtml = `
+            <div style="margin-top:16px">
+                <div style="font-size:12px;font-weight:600;color:#059669;margin-bottom:10px;display:flex;align-items:center;gap:6px">
+                    <i class="fas fa-lightbulb"></i>
+                    <span>Try asking questions like:</span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                    ${queryCards}
+                </div>
+            </div>
+        `;
+    }
+
+    return `
+        <div class="msg-banner info" style="background:linear-gradient(135deg,#fef3c7,#fef9c3);border:1px solid #fcd34d">
+            <i class="fas fa-info-circle" style="color:#d97706"></i>
+            <div style="flex:1">
+                <strong style="color:#92400e">I can only help with Agriculture Data</strong>
+                <p style="margin-top:6px;font-size:13px;color:#a16207">${escapeHtml(data.narration)}</p>
+                ${suggestionsHtml}
+            </div>
         </div>
     `;
 }
@@ -352,6 +412,9 @@ function renderAnalytics(data) {
         case 'kpi':
             visualContent = renderKPIVisual(data, chartId);
             break;
+        case 'multi_kpi':
+            visualContent = renderMultiKPIVisual(data, chartId);
+            break;
         case 'bar':
             visualContent = renderBarChart(data, chartId);
             break;
@@ -365,6 +428,9 @@ function renderAnalytics(data) {
             visualContent = renderKPIVisual(data, chartId);
     }
 
+    // Display-friendly badge text
+    const badgeText = chartType === 'multi_kpi' ? 'SUMMARY' : chartType.toUpperCase();
+
     return `
         <div class="analytics-card">
             <div class="analytics-header">
@@ -374,7 +440,7 @@ function renderAnalytics(data) {
                     </div>
                     <h4>${escapeHtml(data.title)}</h4>
                 </div>
-                <span class="analytics-badge">${chartType}</span>
+                <span class="analytics-badge">${badgeText}</span>
             </div>
             <div class="analytics-body">
                 ${visualContent}
@@ -395,45 +461,157 @@ function renderKPIVisual(data, chartId) {
     const value = data.chart_data.values[0] || 0;
     const unit = data.chart_data.unit || '';
     const formatted = formatNumber(value);
+    const fullValue = value.toLocaleString('en-IN');
 
-    // Calculate progress percentage
-    const percentage = Math.min(100, Math.max(0, (value / (value * 1.2)) * 100));
-    const circumference = 2 * Math.PI * 26;
-    const strokeDasharray = `${(percentage / 100) * circumference} ${circumference}`;
+    // Get icon based on unit type
+    const iconMap = {
+        'Farmers': 'fa-users',
+        'Plots': 'fa-map',
+        'Hectares': 'fa-seedling',
+        'Surveys': 'fa-clipboard-check',
+        'Surveyors': 'fa-user-tie'
+    };
+    const icon = iconMap[unit] || 'fa-chart-line';
+
+    // Get extra stats from metadata
+    const farmersCount = data.farmers_count || data.metadata?.farmers_count;
+    const plotsCount = data.plots_count || data.metadata?.plots_count;
+    const uniqueCrops = data.unique_crops || data.metadata?.unique_crops;
+
+    // Build mini stats cards
+    let miniStats = '';
+    if (farmersCount || plotsCount || uniqueCrops) {
+        miniStats = `<div class="kpi-mini-stats">`;
+        if (farmersCount && unit !== 'Farmers') {
+            miniStats += `
+                <div class="mini-stat-card">
+                    <i class="fas fa-users"></i>
+                    <div class="mini-stat-value">${formatNumber(farmersCount)}</div>
+                    <div class="mini-stat-label">Farmers</div>
+                </div>`;
+        }
+        if (plotsCount && unit !== 'Plots') {
+            miniStats += `
+                <div class="mini-stat-card">
+                    <i class="fas fa-map"></i>
+                    <div class="mini-stat-value">${formatNumber(plotsCount)}</div>
+                    <div class="mini-stat-label">Plots</div>
+                </div>`;
+        }
+        if (uniqueCrops) {
+            miniStats += `
+                <div class="mini-stat-card">
+                    <i class="fas fa-leaf"></i>
+                    <div class="mini-stat-value">${uniqueCrops}</div>
+                    <div class="mini-stat-label">Crops</div>
+                </div>`;
+        }
+        miniStats += `</div>`;
+    }
 
     return `
-        <div class="kpi-compact">
-            <div class="kpi-ring">
-                <svg viewBox="0 0 64 64">
-                    <defs>
-                        <linearGradient id="kpiGradient-${chartId}" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" stop-color="#059669"/>
-                            <stop offset="50%" stop-color="#10b981"/>
-                            <stop offset="100%" stop-color="#34d399"/>
-                        </linearGradient>
-                    </defs>
-                    <circle class="ring-bg" cx="32" cy="32" r="26"></circle>
-                    <circle class="ring-progress" cx="32" cy="32" r="26"
-                            stroke="url(#kpiGradient-${chartId})"
-                            stroke-dasharray="${strokeDasharray}"></circle>
-                </svg>
-                <div class="kpi-ring-value">${Math.round(percentage)}%</div>
+        <div class="kpi-hero">
+            <div class="kpi-hero-left">
+                <div class="kpi-icon-wrapper">
+                    <div class="kpi-icon-bg"></div>
+                    <i class="fas ${icon}"></i>
+                </div>
             </div>
-            <div class="kpi-info">
-                <div class="kpi-value-row">
-                    <span class="kpi-number">${formatted}</span>
-                    <span class="kpi-unit">${escapeHtml(unit)}</span>
+            <div class="kpi-hero-right">
+                <div class="kpi-hero-value">
+                    <span class="kpi-big-number" data-value="${value}">${formatted}</span>
+                    <span class="kpi-hero-unit">${escapeHtml(unit)}</span>
                 </div>
-                <div class="kpi-label">Current Period Total</div>
-                <div class="kpi-progress-bar">
-                    <div class="progress-track">
-                        <div class="progress-fill" style="width:${percentage}%"></div>
-                    </div>
-                    <div class="progress-labels">
-                        <span>0</span>
-                        <span>Target</span>
-                    </div>
+                <div class="kpi-hero-subtitle">
+                    <span class="kpi-exact-value">${fullValue} ${escapeHtml(unit)}</span>
+                    <span class="kpi-badge-live"><i class="fas fa-circle"></i> Live Data</span>
                 </div>
+            </div>
+        </div>
+        ${miniStats}
+    `;
+}
+
+// ============================================================
+// MULTI-KPI VISUAL - Summary Dashboard with Multiple Cards
+// ============================================================
+
+function renderMultiKPIVisual(data, chartId) {
+    const kpis = data.chart_data.kpis || [];
+
+    if (kpis.length === 0) {
+        return `<div class="msg-banner info">
+            <i class="fas fa-info-circle"></i>
+            <span>No summary data available</span>
+        </div>`;
+    }
+
+    // Icon mapping for different indicators
+    const iconMap = {
+        'surveyed_plots': 'fa-clipboard-check',
+        'crop_area': 'fa-seedling',
+        'farmers': 'fa-users',
+        'total_plots': 'fa-map',
+        'irrigated_area': 'fa-tint',
+        'fallow_area': 'fa-leaf',
+        'harvested_area': 'fa-wheat',
+        'surveyed_area': 'fa-ruler-combined'
+    };
+
+    // Color gradient mapping
+    const colorMap = {
+        'surveyed_plots': ['#0891b2', '#22d3ee'],
+        'crop_area': ['#059669', '#34d399'],
+        'farmers': ['#8b5cf6', '#c4b5fd'],
+        'total_plots': ['#f59e0b', '#fcd34d'],
+        'irrigated_area': ['#3b82f6', '#93c5fd'],
+        'fallow_area': ['#84cc16', '#bef264'],
+        'harvested_area': ['#f97316', '#fdba74'],
+        'surveyed_area': ['#6366f1', '#a5b4fc']
+    };
+
+    let kpiCards = kpis.map((kpi, index) => {
+        const icon = iconMap[kpi.indicator] || 'fa-chart-line';
+        const colors = colorMap[kpi.indicator] || COLORS.gradients[index % COLORS.gradients.length];
+        const formatted = formatNumber(kpi.value);
+        const fullValue = kpi.value.toLocaleString('en-IN');
+
+        // Build extra info if available
+        let extraInfo = '';
+        if (kpi.farmers_count) {
+            extraInfo += `<span class="kpi-extra-stat"><i class="fas fa-users"></i> ${formatNumber(kpi.farmers_count)}</span>`;
+        }
+        if (kpi.plots_count) {
+            extraInfo += `<span class="kpi-extra-stat"><i class="fas fa-map"></i> ${formatNumber(kpi.plots_count)}</span>`;
+        }
+        if (kpi.unique_crops) {
+            extraInfo += `<span class="kpi-extra-stat"><i class="fas fa-leaf"></i> ${kpi.unique_crops} crops</span>`;
+        }
+
+        return `
+            <div class="multi-kpi-card" style="--card-color-1: ${colors[0]}; --card-color-2: ${colors[1]}">
+                <div class="multi-kpi-icon">
+                    <i class="fas ${icon}"></i>
+                </div>
+                <div class="multi-kpi-content">
+                    <div class="multi-kpi-title">${escapeHtml(kpi.title)}</div>
+                    <div class="multi-kpi-value">${formatted}</div>
+                    <div class="multi-kpi-unit">${escapeHtml(kpi.unit)}</div>
+                    <div class="multi-kpi-exact">${fullValue}</div>
+                    ${extraInfo ? `<div class="multi-kpi-extras">${extraInfo}</div>` : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    return `
+        <div class="multi-kpi-container">
+            <div class="multi-kpi-header">
+                <i class="fas fa-layer-group"></i>
+                <span>National Summary</span>
+            </div>
+            <div class="multi-kpi-grid">
+                ${kpiCards}
             </div>
         </div>
     `;
@@ -465,6 +643,10 @@ function renderBarChart(data, chartId) {
         `;
     });
 
+    // Total summary section
+    const totalFormatted = formatNumber(total);
+    const totalFull = total.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+
     return `
         <div class="chart-wrapper">
             <div class="chart-bar-container">
@@ -481,6 +663,21 @@ function renderBarChart(data, chartId) {
                 </thead>
                 <tbody>${tableRows}</tbody>
             </table>
+            <div class="chart-total-summary" style="margin-top:16px;padding:12px 16px;background:linear-gradient(135deg,#f0fdf4,#ecfdf5);border-radius:10px;border:1px solid #bbf7d0;display:flex;align-items:center;justify-content:space-between">
+                <div style="display:flex;align-items:center;gap:10px">
+                    <div style="width:36px;height:36px;background:#059669;border-radius:8px;display:flex;align-items:center;justify-content:center">
+                        <i class="fas fa-calculator" style="color:white;font-size:14px"></i>
+                    </div>
+                    <div>
+                        <div style="font-size:11px;font-weight:600;color:#059669;text-transform:uppercase;letter-spacing:0.5px">Total</div>
+                        <div style="font-size:10px;color:#6b7280">${totalFull} ${escapeHtml(unit)}</div>
+                    </div>
+                </div>
+                <div style="text-align:right">
+                    <div style="font-size:22px;font-weight:700;color:#059669">${totalFormatted}</div>
+                    <div style="font-size:11px;color:#6b7280">${escapeHtml(unit)}</div>
+                </div>
+            </div>
         </div>
     `;
 }
@@ -492,6 +689,7 @@ function renderBarChart(data, chartId) {
 function renderPieChart(data, chartId) {
     const labels = data.chart_data.labels || [];
     const values = data.chart_data.values || [];
+    const unit = data.chart_data.unit || '';
     const total = values.reduce((a, b) => a + b, 0);
 
     // Legend items with gradient badges
@@ -508,6 +706,10 @@ function renderPieChart(data, chartId) {
         `;
     });
 
+    // Total summary
+    const totalFormatted = formatNumber(total);
+    const totalFull = total.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+
     return `
         <div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap">
             <div class="chart-pie-container" style="flex:1;min-width:180px">
@@ -516,6 +718,21 @@ function renderPieChart(data, chartId) {
             <div style="flex:1;min-width:180px">
                 <div style="font-size:11px;font-weight:700;color:var(--gray-400);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">Distribution</div>
                 ${legendItems}
+            </div>
+        </div>
+        <div class="chart-total-summary" style="margin-top:16px;padding:12px 16px;background:linear-gradient(135deg,#f0fdf4,#ecfdf5);border-radius:10px;border:1px solid #bbf7d0;display:flex;align-items:center;justify-content:space-between">
+            <div style="display:flex;align-items:center;gap:10px">
+                <div style="width:36px;height:36px;background:#059669;border-radius:8px;display:flex;align-items:center;justify-content:center">
+                    <i class="fas fa-calculator" style="color:white;font-size:14px"></i>
+                </div>
+                <div>
+                    <div style="font-size:11px;font-weight:600;color:#059669;text-transform:uppercase;letter-spacing:0.5px">Total</div>
+                    <div style="font-size:10px;color:#6b7280">${totalFull} ${escapeHtml(unit)}</div>
+                </div>
+            </div>
+            <div style="text-align:right">
+                <div style="font-size:22px;font-weight:700;color:#059669">${totalFormatted}</div>
+                <div style="font-size:11px;color:#6b7280">${escapeHtml(unit)}</div>
             </div>
         </div>
     `;
@@ -963,6 +1180,7 @@ function truncateLabel(label, maxLen) {
 function getChartIcon(type) {
     const icons = {
         kpi: 'fa-gauge-high',
+        multi_kpi: 'fa-layer-group',
         bar: 'fa-chart-bar',
         pie: 'fa-chart-pie',
         line: 'fa-chart-line'
