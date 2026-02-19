@@ -1,52 +1,489 @@
-import psycopg2
-from psycopg2.extras import RealDictCursor
-from typing import Dict, Any
-from config import DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD, INDICATORS, DIMENSIONS
+import pandas as pd
+from typing import Dict, Any, List, Optional
+from urllib.parse import quote_plus
+from sqlalchemy import create_engine, text
+from config import DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, INDICATORS, DIMENSIONS
+from lgd_mapping import LGD_TO_DISTRICT_NAME
+from datetime import datetime
+
 
 class DBHandler:
+    """Database Handler for AgriStack Analytics - PostgreSQL"""
+
+    TABLE_MAPPING = {
+        "crop_area": "public.crop_area_data",
+        "aggregate": "public.aggregate_summary_data",
+        "cultivated": "public.cultivated_summary_data"
+    }
+
     def __init__(self):
-        self.params = {"host": DB_HOST, "port": DB_PORT, "dbname": DB_NAME, "user": DB_USER, "password": DB_PASSWORD}
+        encoded_password = quote_plus(DB_PASSWORD)
+        self._engine = create_engine(
+            f"postgresql://{DB_USER}:{encoded_password}@{DB_HOST}:{DB_PORT}/{DB_NAME}",
+            pool_pre_ping=True,
+            pool_size=5,
+            max_overflow=10
+        )
+        self._current_lgd = None
+
+    def _get_db_table(self, table_key: str) -> str:
+        return self.TABLE_MAPPING.get(table_key, f"public.{table_key}")
+
+    def _load_table(self, table_key: str, user_lgd: str,
+                    crop_filter=None, season_filter=None, year_filter=None,
+                    district_filter=None) -> pd.DataFrame:
+        """Load data from PostgreSQL with filters pushed down to SQL"""
+
+        db_table = self._get_db_table(table_key)
+        conditions = ["state_lgd_code::TEXT = :lgd"]
+        params = {"lgd": str(user_lgd)}
+
+        # District filter
+        if district_filter:
+            conditions.append("district_lgd_code::TEXT = :district")
+            params["district"] = str(district_filter)
+
+        if crop_filter and table_key == "crop_area":
+            if isinstance(crop_filter, list):
+                crop_conds = []
+                for i, c in enumerate(crop_filter):
+                    key = f"crop_{i}"
+                    crop_conds.append(f"crop_name_eng ILIKE :{key}")
+                    params[key] = f"%{c}%"
+                conditions.append(f"({' OR '.join(crop_conds)})")
+            else:
+                conditions.append("crop_name_eng ILIKE :crop")
+                params["crop"] = f"%{crop_filter}%"
+
+        if season_filter:
+            conditions.append("LOWER(season) = LOWER(:season)")
+            params["season"] = season_filter
+
+        if year_filter:
+            conditions.append("year::TEXT = :year")
+            params["year"] = year_filter
+
+        where_clause = " AND ".join(conditions)
+        query = f"SELECT * FROM {db_table} WHERE {where_clause}"
+
+        with self._engine.connect() as conn:
+            df = pd.read_sql(text(query), conn, params=params)
+
+        return df
+
+    def _get_current_year(self) -> str:
+        now = datetime.now()
+        if now.month >= 4:
+            return f"{now.year}-{now.year + 1}"
+        return f"{now.year - 1}-{now.year}"
+
+    def _get_current_season(self) -> str:
+        month = datetime.now().month
+        if 6 <= month <= 10:
+            return "Kharif"
+        elif 11 <= month or month <= 3:
+            return "Rabi"
+        return "Summer"
 
     def execute_analytics(self, intent: Dict[str, Any], user_lgd: str) -> Dict[str, Any]:
-        ind_meta = INDICATORS[intent["indicator"]]
-        dim_key = intent["dimension"]
-        dim_meta = DIMENSIONS.get(dim_key)
+        """Execute analytics query based on intent"""
 
-        table = ind_meta["table"]
+        self._current_lgd = user_lgd
+        district_filter = intent.get("district_filter")
+        district_name = intent.get("district_name")
+
+        if intent.get("intent_type") == "multi_summary":
+            return self._handle_multi_summary(intent, user_lgd, district_filter=district_filter, district_name=district_name)
+
+        indicator_key = intent.get("indicator", "crop_area")
+        dimension_key = intent.get("dimension")
+        crop_filter = intent.get("crop_filter")
+        season_filter = intent.get("season_filter")
+        year_filter = intent.get("year_filter")
+        top_n = intent.get("top_n", 10)
+        comparison_type = intent.get("comparison_type")
+
+        if indicator_key not in INDICATORS:
+            indicator_key = "crop_area"
+        ind_meta = INDICATORS[indicator_key]
+
+        table_name = ind_meta["table"]
+        df = self._load_table(table_name, user_lgd, crop_filter, season_filter, year_filter,
+                              district_filter=district_filter)
+
+        if len(df) == 0:
+            note = f"No data found for district {district_name}." if district_name else "No data found for this state."
+            return self._empty_result(ind_meta, note)
+
         val_col = ind_meta["column"]
-        
-        try:
-            conn = psycopg2.connect(**self.params, cursor_factory=RealDictCursor)
-            cur = conn.cursor()
 
-            # 1. Validation: Check if columns exist
-            cur.execute(f"SELECT column_name FROM information_schema.columns WHERE table_name = '{table}'")
-            existing_cols = [r['column_name'] for r in cur.fetchall()]
+        if indicator_key == "pending_validation":
+            if 'crop_area_closed' in df.columns and 'crop_area_approved' in df.columns:
+                df['pending'] = df['crop_area_closed'] - df['crop_area_approved']
+                df['pending'] = df['pending'].clip(lower=0)
+                val_col = 'pending'
 
-            actual_dim = dim_meta['column'] if dim_meta and dim_meta['column'] in existing_cols else None
-            label_col = actual_dim if actual_dim else "'Total'"
-            group_clause = f"GROUP BY {label_col}" if actual_dim else ""
-            
-            sql = f"SELECT {label_col} as label, SUM({val_col}) as value FROM {table} WHERE state_lgd_code = '{user_lgd}' {group_clause} ORDER BY value DESC"
-            
-            cur.execute(sql)
-            rows = cur.fetchall()
-            cur.close()
-            conn.close()
+        if comparison_type:
+            return self._handle_comparison(df, comparison_type, ind_meta, crop_filter, season_filter, year_filter, user_lgd,
+                                           district_filter=district_filter, district_name=district_name)
 
-            res = {
-                "title": f"{ind_meta['title']} by {dim_meta['title']}" if actual_dim else ind_meta["title"],
+        if dimension_key and dimension_key in DIMENSIONS:
+            return self._grouped_result(df, dimension_key, val_col, ind_meta, crop_filter, season_filter, year_filter, top_n,
+                                        district_name=district_name)
+
+        return self._summary_result(df, val_col, ind_meta, crop_filter, season_filter, year_filter, table_name,
+                                    district_name=district_name)
+
+    def _grouped_result(self, df: pd.DataFrame, dimension_key: str, val_col: str,
+                        ind_meta: Dict, crop_filter, season_filter, year_filter, top_n: int,
+                        district_name: str = None) -> Dict[str, Any]:
+        """Generate grouped/breakdown result"""
+
+        dim_meta = DIMENSIONS[dimension_key]
+        label_col = dim_meta["column"]
+
+        if label_col not in df.columns:
+            return self._empty_result(ind_meta, f"Dimension '{dim_meta['title']}' not available in this data.")
+
+        if val_col not in df.columns:
+            return self._empty_result(ind_meta, f"Column '{val_col}' not found in data.")
+
+        result = df.groupby(label_col)[val_col].sum()
+
+        if dimension_key == "year":
+            result = result.sort_index(ascending=True)
+        else:
+            result = result.sort_values(ascending=False)
+            result = result.head(top_n)
+
+        total = result.sum()
+
+        # Replace district LGD codes with readable names
+        if dimension_key == "district":
+            labels = [LGD_TO_DISTRICT_NAME.get(str(int(i)) if not isinstance(i, str) else i, str(i))
+                      for i in result.index]
+        else:
+            labels = [str(i) for i in result.index]
+
+        values = [float(v) for v in result.values]
+        percentages = [(v / total * 100) if total > 0 else 0 for v in values]
+
+        # Build title
+        title_parts = []
+        if district_name:
+            title_parts.append(district_name)
+        if crop_filter:
+            if isinstance(crop_filter, list):
+                title_parts.append(" & ".join(crop_filter))
+            else:
+                title_parts.append(crop_filter)
+        title_parts.append(ind_meta['title'])
+        title_parts.append(f"by {dim_meta['title']}")
+        if season_filter:
+            title_parts.append(f"({season_filter})")
+        if year_filter:
+            title_parts.append(f"[{year_filter}]")
+
+        # Determine chart type
+        if dimension_key == "year":
+            chart_type = "bar"
+        elif dimension_key == "crop":
+            chart_type = "bar"
+        elif crop_filter and isinstance(crop_filter, list):
+            chart_type = "bar"
+        elif len(values) <= 5:
+            chart_type = "pie"
+        else:
+            chart_type = "bar"
+
+        # Build SQL query for display
+        db_table = self._get_db_table(ind_meta["table"])
+        filters = [f"state_lgd_code::INT = {self._current_lgd}", "is_view = true"]
+        if crop_filter:
+            if isinstance(crop_filter, list):
+                crop_conditions = [f"crop_name_eng ILIKE '%{c}%'" for c in crop_filter]
+                filters.append(f"({' OR '.join(crop_conditions)})")
+            else:
+                filters.append(f"crop_name_eng ILIKE '%{crop_filter}%'")
+        if season_filter:
+            filters.append(f"season = '{season_filter}'")
+        if year_filter:
+            filters.append(f"year = '{year_filter}'")
+
+        data_query = {
+            "table": db_table,
+            "column": val_col,
+            "aggregation": "SUM",
+            "group_by": label_col,
+            "filters": filters,
+            "sql_preview": f"SELECT {label_col}, COUNT(*) AS record_count, SUM({val_col}::NUMERIC) AS {val_col}_sum FROM {db_table} WHERE {' AND '.join(filters)} GROUP BY {label_col} ORDER BY {val_col}_sum DESC"
+        }
+
+        return {
+            "title": " ".join(title_parts),
+            "unit": ind_meta["unit"],
+            "labels": labels,
+            "values": values,
+            "percentages": percentages,
+            "total": float(total),
+            "chart_type": chart_type,
+            "dimension": dim_meta["title"],
+            "crop_filter": crop_filter,
+            "season_filter": season_filter,
+            "year_filter": year_filter,
+            "record_count": len(df),
+            "data_query": data_query
+        }
+
+    def _summary_result(self, df: pd.DataFrame, val_col: str, ind_meta: Dict,
+                        crop_filter, season_filter, year_filter, table_name: str,
+                        district_name: str = None) -> Dict[str, Any]:
+        """Generate summary KPI result"""
+
+        if val_col not in df.columns:
+            return self._empty_result(ind_meta, f"Column '{val_col}' not found.")
+
+        total = float(df[val_col].sum())
+
+        extra_stats = {}
+        if table_name == "crop_area":
+            if 'no_of_farmers' in df.columns:
+                extra_stats['farmers_count'] = int(df['no_of_farmers'].sum())
+            if 'no_of_plots' in df.columns:
+                extra_stats['plots_count'] = int(df['no_of_plots'].sum())
+            if 'crop_name_eng' in df.columns:
+                extra_stats['unique_crops'] = df['crop_name_eng'].nunique()
+        elif table_name == "aggregate":
+            for col in ['total_plots', 'total_assigned_plots', 'total_plots_surveyed',
+                        'total_survey_approved', 'total_survey_under_review']:
+                if col in df.columns:
+                    extra_stats[col] = int(df[col].sum())
+        elif table_name == "cultivated":
+            for col in ['total_irrigated_area', 'total_unirrigated_area', 'total_fallow_area',
+                        'total_harvested_area', 'total_surveyable_area']:
+                if col in df.columns:
+                    extra_stats[col] = float(df[col].sum())
+
+        # Build title
+        title_parts = []
+        if district_name:
+            title_parts.append(district_name)
+        if crop_filter:
+            if isinstance(crop_filter, list):
+                title_parts.append(" & ".join(crop_filter))
+            else:
+                title_parts.append(crop_filter)
+        title_parts.append(ind_meta['title'])
+        if season_filter:
+            title_parts.append(f"({season_filter})")
+        if year_filter:
+            title_parts.append(f"[{year_filter}]")
+
+        # Build SQL query for display
+        db_table = self._get_db_table(table_name)
+        filters = [f"state_lgd_code::INT = {self._current_lgd}", "is_view = true"]
+        if crop_filter:
+            if isinstance(crop_filter, list):
+                crop_conditions = [f"crop_name_eng ILIKE '%{c}%'" for c in crop_filter]
+                filters.append(f"({' OR '.join(crop_conditions)})")
+            else:
+                filters.append(f"crop_name_eng ILIKE '%{crop_filter}%'")
+        if season_filter:
+            filters.append(f"season = '{season_filter}'")
+        if year_filter:
+            filters.append(f"year = '{year_filter}'")
+
+        data_query = {
+            "table": db_table,
+            "column": val_col,
+            "aggregation": "SUM",
+            "group_by": None,
+            "filters": filters,
+            "sql_preview": f"SELECT COUNT(*) AS record_count, SUM({val_col}::NUMERIC) AS {val_col}_sum FROM {db_table} WHERE {' AND '.join(filters)}"
+        }
+
+        return {
+            "title": " ".join(title_parts),
+            "unit": ind_meta["unit"],
+            "labels": ["Total"],
+            "values": [total],
+            "chart_type": "kpi",
+            "crop_filter": crop_filter,
+            "season_filter": season_filter,
+            "year_filter": year_filter,
+            "record_count": len(df),
+            "data_query": data_query,
+            **extra_stats
+        }
+
+    def _handle_comparison(self, df: pd.DataFrame, comparison_type: str,
+                           ind_meta: Dict, crop_filter, season_filter, year_filter, user_lgd: str,
+                           district_filter=None, district_name=None) -> Dict[str, Any]:
+        """Handle comparison queries"""
+
+        val_col = ind_meta["column"]
+        title_prefix = f"{district_name} - " if district_name else ""
+
+        if comparison_type == "irrigated_vs_unirrigated":
+            cult_df = self._load_table("cultivated", user_lgd, district_filter=district_filter)
+            if 'total_irrigated_area' in cult_df.columns and 'total_unirrigated_area' in cult_df.columns:
+                irrigated = float(cult_df['total_irrigated_area'].sum())
+                unirrigated = float(cult_df['total_unirrigated_area'].sum())
+                return {
+                    "title": f"{title_prefix}Irrigated vs Unirrigated Area Comparison",
+                    "unit": "Hectares",
+                    "labels": ["Irrigated", "Unirrigated"],
+                    "values": [irrigated, unirrigated],
+                    "chart_type": "pie",
+                    "comparison_type": comparison_type,
+                    "total": irrigated + unirrigated
+                }
+
+        elif comparison_type == "assigned_vs_surveyed":
+            agg_df = self._load_table("aggregate", user_lgd, district_filter=district_filter)
+            if 'total_assigned_plots' in agg_df.columns and 'total_plots_surveyed' in agg_df.columns:
+                assigned = float(agg_df['total_assigned_plots'].sum())
+                surveyed = float(agg_df['total_plots_surveyed'].sum())
+                return {
+                    "title": f"{title_prefix}Assigned vs Surveyed Plots Comparison",
+                    "unit": "Plots",
+                    "labels": ["Assigned", "Surveyed"],
+                    "values": [assigned, surveyed],
+                    "chart_type": "bar",
+                    "comparison_type": comparison_type,
+                    "total": assigned + surveyed
+                }
+
+        elif comparison_type == "approved_vs_closed":
+            crop_df = self._load_table("crop_area", user_lgd, district_filter=district_filter)
+            if 'crop_area_approved' in crop_df.columns and 'crop_area_closed' in crop_df.columns:
+                approved = float(crop_df['crop_area_approved'].sum())
+                closed = float(crop_df['crop_area_closed'].sum())
+                return {
+                    "title": f"{title_prefix}Approved vs Closed Crop Area",
+                    "unit": "Hectares",
+                    "labels": ["Approved", "Closed"],
+                    "values": [approved, closed],
+                    "chart_type": "bar",
+                    "comparison_type": comparison_type,
+                    "total": approved + closed
+                }
+
+        elif comparison_type == "surveyable_vs_surveyed":
+            cult_df = self._load_table("cultivated", user_lgd, district_filter=district_filter)
+            if 'total_surveyable_area' in cult_df.columns and 'total_surveyed_area' in cult_df.columns:
+                surveyable = float(cult_df['total_surveyable_area'].sum())
+                surveyed = float(cult_df['total_surveyed_area'].sum())
+                return {
+                    "title": f"{title_prefix}Surveyable vs Surveyed Area",
+                    "unit": "Hectares",
+                    "labels": ["Surveyable", "Surveyed"],
+                    "values": [surveyable, surveyed],
+                    "chart_type": "bar",
+                    "comparison_type": comparison_type,
+                    "total": surveyable + surveyed
+                }
+
+        elif comparison_type == "rabi_vs_kharif":
+            if 'season' in df.columns:
+                rabi_df = df[df['season'].str.lower() == 'rabi']
+                kharif_df = df[df['season'].str.lower() == 'kharif']
+                rabi_val = float(rabi_df[val_col].sum()) if len(rabi_df) > 0 else 0
+                kharif_val = float(kharif_df[val_col].sum()) if len(kharif_df) > 0 else 0
+                return {
+                    "title": f"{title_prefix}Rabi vs Kharif - {ind_meta['title']}",
+                    "unit": ind_meta["unit"],
+                    "labels": ["Rabi", "Kharif"],
+                    "values": [rabi_val, kharif_val],
+                    "chart_type": "pie",
+                    "comparison_type": comparison_type,
+                    "total": rabi_val + kharif_val
+                }
+
+        elif comparison_type == "fallow_vs_cultivated":
+            cult_df = self._load_table("cultivated", user_lgd, district_filter=district_filter)
+            if 'total_fallow_area' in cult_df.columns and 'total_surveyed_area' in cult_df.columns:
+                fallow = float(cult_df['total_fallow_area'].sum())
+                cultivated = float(cult_df['total_surveyed_area'].sum()) - fallow
+                return {
+                    "title": f"{title_prefix}Fallow vs Cultivated Area",
+                    "unit": "Hectares",
+                    "labels": ["Fallow", "Cultivated"],
+                    "values": [fallow, cultivated],
+                    "chart_type": "pie",
+                    "comparison_type": comparison_type,
+                    "total": fallow + cultivated
+                }
+
+        return self._empty_result(ind_meta, "Comparison data not available.")
+
+    def _handle_multi_summary(self, intent: Dict[str, Any], user_lgd: str,
+                              district_filter=None, district_name=None) -> Dict[str, Any]:
+        """Handle multi-indicator summary queries"""
+
+        indicators = intent.get("indicators", [])
+        year_filter = intent.get("year_filter")
+        season_filter = intent.get("season_filter")
+
+        kpis = []
+
+        for indicator_key in indicators:
+            if indicator_key not in INDICATORS:
+                continue
+
+            ind_meta = INDICATORS[indicator_key]
+            table_name = ind_meta["table"]
+            val_col = ind_meta["column"]
+
+            df = self._load_table(table_name, user_lgd,
+                                  season_filter=season_filter,
+                                  year_filter=year_filter,
+                                  district_filter=district_filter)
+
+            if val_col in df.columns:
+                total = float(df[val_col].sum())
+            else:
+                total = 0
+
+            extra_stats = {}
+            if table_name == "crop_area":
+                if 'no_of_farmers' in df.columns:
+                    extra_stats['farmers_count'] = int(df['no_of_farmers'].sum())
+                if 'no_of_plots' in df.columns:
+                    extra_stats['plots_count'] = int(df['no_of_plots'].sum())
+                if 'crop_name_eng' in df.columns:
+                    extra_stats['unique_crops'] = df['crop_name_eng'].nunique()
+
+            kpis.append({
+                "indicator": indicator_key,
+                "title": ind_meta["title"],
                 "unit": ind_meta["unit"],
-                "labels": [str(r['label']) for r in rows],
-                "values": [float(r['value'] or 0) for r in rows],
-                "chart_type": "bar" if actual_dim else "kpi",
-                "sql_query": sql
-            }
+                "value": total,
+                "record_count": len(df),
+                **extra_stats
+            })
 
-            if dim_meta and not actual_dim:
-                res["note"] = f"Dimension '{dim_meta['title']}' is currently not available in our {table} records."
-            
-            return res
+        title_parts = [f"{district_name} Summary" if district_name else "National-Level Summary"]
+        if year_filter:
+            title_parts.append(f"[{year_filter}]")
+        if season_filter:
+            title_parts.append(f"({season_filter})")
 
-        except Exception as e:
-            raise Exception(f"Query Execution Error: {str(e)}")
+        return {
+            "title": " ".join(title_parts),
+            "chart_type": "multi_kpi",
+            "kpis": kpis,
+            "year_filter": year_filter,
+            "season_filter": season_filter,
+            "record_count": sum(k.get("record_count", 0) for k in kpis)
+        }
+
+    def _empty_result(self, ind_meta: Dict, note: str) -> Dict[str, Any]:
+        return {
+            "title": ind_meta.get("title", "Data"),
+            "unit": ind_meta.get("unit", ""),
+            "labels": [],
+            "values": [],
+            "chart_type": "kpi",
+            "note": note
+        }

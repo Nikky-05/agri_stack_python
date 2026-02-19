@@ -10,28 +10,28 @@
 let userLGD = localStorage.getItem('userLGD');
 let activeCharts = new Map();
 
-// Premium Gradient Color Palette
+// AgriStack Green & Gold Color Palette
 const COLORS = {
-    primary: ['#059669', '#10b981', '#34d399', '#6ee7b7', '#a7f3d0'],
+    primary: ['#1B4332', '#2D6A4F', '#40916C', '#52B788', '#74C69D'],
     chart: [
-        '#059669', '#0891b2', '#6366f1', '#8b5cf6',
-        '#ec4899', '#f59e0b', '#84cc16', '#14b8a6',
-        '#f43f5e', '#3b82f6', '#a855f7', '#22c55e'
+        '#1B4332', '#2D6A4F', '#40916C', '#52B788',
+        '#D4A017', '#B8860B', '#74C69D', '#95D5B2',
+        '#DAA520', '#2D6A4F', '#40916C', '#1B4332'
     ],
     gradients: [
-        ['#059669', '#34d399'],
-        ['#0891b2', '#22d3ee'],
-        ['#6366f1', '#a78bfa'],
-        ['#8b5cf6', '#c4b5fd'],
-        ['#ec4899', '#f9a8d4'],
-        ['#f59e0b', '#fcd34d'],
-        ['#84cc16', '#bef264'],
-        ['#14b8a6', '#5eead4']
+        ['#1B4332', '#40916C'],
+        ['#2D6A4F', '#52B788'],
+        ['#B8860B', '#DAA520'],
+        ['#40916C', '#74C69D'],
+        ['#D4A017', '#F0C040'],
+        ['#1B4332', '#2D6A4F'],
+        ['#52B788', '#95D5B2'],
+        ['#2D6A4F', '#74C69D']
     ],
-    success: '#10b981',
-    warning: '#f59e0b',
-    error: '#ef4444',
-    info: '#3b82f6'
+    success: '#2D6A4F',
+    warning: '#DAA520',
+    error: '#dc3545',
+    info: '#40916C'
 };
 
 // ============================================================
@@ -335,15 +335,15 @@ function renderOffTopic(data) {
     let suggestionsHtml = '';
     if (suggestedQueries.length > 0) {
         const queryCards = suggestedQueries.map(query => `
-            <div class="suggested-query-card" data-query="${escapeHtml(query)}" style="padding:10px 14px;background:linear-gradient(135deg,#f0fdf4,#ecfdf5);border:1px solid #bbf7d0;border-radius:8px;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:8px">
-                <i class="fas fa-arrow-right" style="color:#059669;font-size:10px"></i>
-                <span style="color:#166534;font-size:13px">${escapeHtml(query)}</span>
+            <div class="suggested-query-card" data-query="${escapeHtml(query)}" style="padding:10px 14px;background:linear-gradient(135deg,#f0f9f0,#e8f5e8);border:1px solid #b7e4c7;border-radius:8px;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:8px">
+                <i class="fas fa-arrow-right" style="color:#1B4332;font-size:10px"></i>
+                <span style="color:#1B4332;font-size:13px">${escapeHtml(query)}</span>
             </div>
         `).join('');
 
         suggestionsHtml = `
             <div style="margin-top:16px">
-                <div style="font-size:12px;font-weight:600;color:#059669;margin-bottom:10px;display:flex;align-items:center;gap:6px">
+                <div style="font-size:12px;font-weight:600;color:#1B4332;margin-bottom:10px;display:flex;align-items:center;gap:6px">
                     <i class="fas fa-lightbulb"></i>
                     <span>Try asking questions like:</span>
                 </div>
@@ -560,14 +560,14 @@ function renderMultiKPIVisual(data, chartId) {
 
     // Color gradient mapping
     const colorMap = {
-        'surveyed_plots': ['#0891b2', '#22d3ee'],
-        'crop_area': ['#059669', '#34d399'],
-        'farmers': ['#8b5cf6', '#c4b5fd'],
-        'total_plots': ['#f59e0b', '#fcd34d'],
-        'irrigated_area': ['#3b82f6', '#93c5fd'],
-        'fallow_area': ['#84cc16', '#bef264'],
-        'harvested_area': ['#f97316', '#fdba74'],
-        'surveyed_area': ['#6366f1', '#a5b4fc']
+        'surveyed_plots': ['#2D6A4F', '#52B788'],
+        'crop_area': ['#1B4332', '#40916C'],
+        'farmers': ['#B8860B', '#DAA520'],
+        'total_plots': ['#D4A017', '#F0C040'],
+        'irrigated_area': ['#40916C', '#74C69D'],
+        'fallow_area': ['#52B788', '#95D5B2'],
+        'harvested_area': ['#1B4332', '#2D6A4F'],
+        'surveyed_area': ['#2D6A4F', '#74C69D']
     };
 
     let kpiCards = kpis.map((kpi, index) => {
@@ -663,18 +663,18 @@ function renderBarChart(data, chartId) {
                 </thead>
                 <tbody>${tableRows}</tbody>
             </table>
-            <div class="chart-total-summary" style="margin-top:16px;padding:12px 16px;background:linear-gradient(135deg,#f0fdf4,#ecfdf5);border-radius:10px;border:1px solid #bbf7d0;display:flex;align-items:center;justify-content:space-between">
+            <div class="chart-total-summary" style="margin-top:16px;padding:12px 16px;background:linear-gradient(135deg,#f0f9f0,#e8f5e8);border-radius:10px;border:1px solid #b7e4c7;display:flex;align-items:center;justify-content:space-between">
                 <div style="display:flex;align-items:center;gap:10px">
-                    <div style="width:36px;height:36px;background:#059669;border-radius:8px;display:flex;align-items:center;justify-content:center">
+                    <div style="width:36px;height:36px;background:#1B4332;border-radius:8px;display:flex;align-items:center;justify-content:center">
                         <i class="fas fa-calculator" style="color:white;font-size:14px"></i>
                     </div>
                     <div>
-                        <div style="font-size:11px;font-weight:600;color:#059669;text-transform:uppercase;letter-spacing:0.5px">Total</div>
+                        <div style="font-size:11px;font-weight:600;color:#1B4332;text-transform:uppercase;letter-spacing:0.5px">Total</div>
                         <div style="font-size:10px;color:#6b7280">${totalFull} ${escapeHtml(unit)}</div>
                     </div>
                 </div>
                 <div style="text-align:right">
-                    <div style="font-size:22px;font-weight:700;color:#059669">${totalFormatted}</div>
+                    <div style="font-size:22px;font-weight:700;color:#1B4332">${totalFormatted}</div>
                     <div style="font-size:11px;color:#6b7280">${escapeHtml(unit)}</div>
                 </div>
             </div>
@@ -720,18 +720,18 @@ function renderPieChart(data, chartId) {
                 ${legendItems}
             </div>
         </div>
-        <div class="chart-total-summary" style="margin-top:16px;padding:12px 16px;background:linear-gradient(135deg,#f0fdf4,#ecfdf5);border-radius:10px;border:1px solid #bbf7d0;display:flex;align-items:center;justify-content:space-between">
+        <div class="chart-total-summary" style="margin-top:16px;padding:12px 16px;background:linear-gradient(135deg,#f0f9f0,#e8f5e8);border-radius:10px;border:1px solid #b7e4c7;display:flex;align-items:center;justify-content:space-between">
             <div style="display:flex;align-items:center;gap:10px">
-                <div style="width:36px;height:36px;background:#059669;border-radius:8px;display:flex;align-items:center;justify-content:center">
+                <div style="width:36px;height:36px;background:#1B4332;border-radius:8px;display:flex;align-items:center;justify-content:center">
                     <i class="fas fa-calculator" style="color:white;font-size:14px"></i>
                 </div>
                 <div>
-                    <div style="font-size:11px;font-weight:600;color:#059669;text-transform:uppercase;letter-spacing:0.5px">Total</div>
+                    <div style="font-size:11px;font-weight:600;color:#1B4332;text-transform:uppercase;letter-spacing:0.5px">Total</div>
                     <div style="font-size:10px;color:#6b7280">${totalFull} ${escapeHtml(unit)}</div>
                 </div>
             </div>
             <div style="text-align:right">
-                <div style="font-size:22px;font-weight:700;color:#059669">${totalFormatted}</div>
+                <div style="font-size:22px;font-weight:700;color:#1B4332">${totalFormatted}</div>
                 <div style="font-size:11px;color:#6b7280">${escapeHtml(unit)}</div>
             </div>
         </div>
@@ -797,11 +797,11 @@ function renderMetadata(metadata) {
     let originalQueryHtml = '';
     if (metadata.original_query) {
         originalQueryHtml = `
-            <div class="original-query-section" style="margin-top:12px;padding:10px 12px;background:linear-gradient(135deg,#f0fdf4,#ecfdf5);border-radius:8px;border:1px solid #bbf7d0">
-                <div style="font-size:11px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">
+            <div class="original-query-section" style="margin-top:12px;padding:10px 12px;background:linear-gradient(135deg,#f0f9f0,#e8f5e8);border-radius:8px;border:1px solid #b7e4c7">
+                <div style="font-size:11px;font-weight:700;color:#1B4332;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">
                     <i class="fas fa-comment-dots" style="margin-right:4px"></i> Your Query
                 </div>
-                <div style="font-size:13px;color:#166534;font-style:italic">"${escapeHtml(metadata.original_query)}"</div>
+                <div style="font-size:13px;color:#1B4332;font-style:italic">"${escapeHtml(metadata.original_query)}"</div>
             </div>
         `;
     }
@@ -823,13 +823,13 @@ function renderMetadata(metadata) {
         if (queryItems.length > 0) {
             parsedQueryHtml = `
                 <div class="parsed-query-section" style="margin-top:12px;padding-top:12px;border-top:1px dashed #e5e7eb">
-                    <div style="font-size:11px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">
+                    <div style="font-size:11px;font-weight:700;color:#1B4332;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">
                         <i class="fas fa-code" style="margin-right:4px"></i> Parsed Query
                     </div>
                     ${queryItems.map(item => `
                         <div class="metadata-row">
                             <span class="label">${item.label}</span>
-                            <span class="value" style="color:#059669;font-weight:600">${item.value}</span>
+                            <span class="value" style="color:#1B4332;font-weight:600">${item.value}</span>
                         </div>
                     `).join('')}
                 </div>
@@ -843,26 +843,26 @@ function renderMetadata(metadata) {
         const dq = metadata.data_query;
         dataQueryHtml = `
             <div class="data-query-section" style="margin-top:12px;padding-top:12px;border-top:1px dashed #e5e7eb">
-                <div style="font-size:11px;font-weight:700;color:#6366f1;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">
+                <div style="font-size:11px;font-weight:700;color:#2D6A4F;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">
                     <i class="fas fa-database" style="margin-right:4px"></i> Data Query
                 </div>
                 <div class="metadata-row">
                     <span class="label">Table</span>
-                    <span class="value" style="color:#6366f1;font-weight:600">${dq.table}</span>
+                    <span class="value" style="color:#2D6A4F;font-weight:600">${dq.table}</span>
                 </div>
                 <div class="metadata-row">
                     <span class="label">Column</span>
-                    <span class="value" style="color:#6366f1;font-weight:600">${dq.column}</span>
+                    <span class="value" style="color:#2D6A4F;font-weight:600">${dq.column}</span>
                 </div>
                 ${dq.group_by ? `
                 <div class="metadata-row">
                     <span class="label">Group By</span>
-                    <span class="value" style="color:#6366f1;font-weight:600">${dq.group_by}</span>
+                    <span class="value" style="color:#2D6A4F;font-weight:600">${dq.group_by}</span>
                 </div>
                 ` : ''}
-                <div style="margin-top:10px;padding:10px;background:#f5f3ff;border-radius:6px;border:1px solid #c7d2fe">
-                    <div style="font-size:10px;color:#6366f1;font-weight:600;margin-bottom:4px">SQL Preview:</div>
-                    <code style="font-size:11px;color:#4338ca;word-break:break-all;display:block">${escapeHtml(dq.sql_preview)}</code>
+                <div style="margin-top:10px;padding:10px;background:#f0f9f0;border-radius:6px;border:1px solid #b7e4c7">
+                    <div style="font-size:10px;color:#2D6A4F;font-weight:600;margin-bottom:4px">SQL Preview:</div>
+                    <code style="font-size:11px;color:#1B4332;word-break:break-all;display:block">${escapeHtml(dq.sql_preview)}</code>
                 </div>
             </div>
         `;
@@ -1037,9 +1037,9 @@ function initializeCharts(container, data) {
         case 'line':
             // Create gradient fill
             const lineGradient = ctx.createLinearGradient(0, 0, 0, 200);
-            lineGradient.addColorStop(0, 'rgba(5, 150, 105, 0.3)');
-            lineGradient.addColorStop(0.5, 'rgba(16, 185, 129, 0.15)');
-            lineGradient.addColorStop(1, 'rgba(52, 211, 153, 0.02)');
+            lineGradient.addColorStop(0, 'rgba(27, 67, 50, 0.25)');
+            lineGradient.addColorStop(0.5, 'rgba(45, 106, 79, 0.12)');
+            lineGradient.addColorStop(1, 'rgba(82, 183, 136, 0.02)');
 
             config = {
                 type: 'line',
@@ -1047,17 +1047,17 @@ function initializeCharts(container, data) {
                     labels: labels,
                     datasets: [{
                         data: values,
-                        borderColor: '#059669',
+                        borderColor: '#1B4332',
                         backgroundColor: lineGradient,
                         fill: true,
                         tension: 0.4,
                         borderWidth: 3,
                         pointRadius: 5,
                         pointBackgroundColor: '#ffffff',
-                        pointBorderColor: '#059669',
+                        pointBorderColor: '#1B4332',
                         pointBorderWidth: 3,
                         pointHoverRadius: 8,
-                        pointHoverBackgroundColor: '#059669',
+                        pointHoverBackgroundColor: '#1B4332',
                         pointHoverBorderColor: '#ffffff',
                         pointHoverBorderWidth: 3
                     }]

@@ -1,10 +1,11 @@
 import random
 import re
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 from config import (
     CONVERSATION_RESPONSES, INDICATORS, DIMENSIONS,
     DISTRIBUTION_KEYWORDS, CROP_NAMES, SEASON_NAMES
 )
+from lgd_mapping import detect_district_in_query
 
 
 class NLPHandler:
@@ -40,21 +41,13 @@ class NLPHandler:
             print(f"LLM Error: {e}")
             return ""
 
-    def classify_intent(self, query: str) -> Dict[str, Any]:
+    def classify_intent(self, query: str, state_lgd: str = "27") -> Dict[str, Any]:
         """Classify user query into structured intent - DYNAMIC & ACCURATE"""
 
         q = query.lower().strip()
         words = set(re.findall(r'\b\w+\b', q))
 
-        # 0. Check for OFF-TOPIC queries first
-        if self._is_off_topic(q, words):
-            return {
-                "mode": "off_topic",
-                "original_query": query,
-                "suggested_queries": self._get_suggested_queries()
-            }
-
-        # 1. Check for conversation mode (greetings, help)
+        # 0. Check for conversation mode FIRST (greetings, help)
         greetings = {"hi", "hello", "hey", "greetings", "hellow", "helo", "hii", "hai", "namaste"}
         help_words = {"help", "guide", "what can"}
 
@@ -63,7 +56,18 @@ class NLPHandler:
         if words & help_words and len(words) <= 8:
             return {"mode": "conversation", "sub_type": "help"}
 
-        # 2. Check for MULTI-INDICATOR summary queries FIRST
+        # 1. Detect district name early (needed for off-topic check & filtering)
+        district_lgd, district_name = detect_district_in_query(q, state_lgd)
+
+        # 2. Check for OFF-TOPIC queries (district presence prevents false off-topic)
+        if self._is_off_topic(q, words, district_detected=district_lgd is not None):
+            return {
+                "mode": "off_topic",
+                "original_query": query,
+                "suggested_queries": self._get_suggested_queries()
+            }
+
+        # 3. Check for MULTI-INDICATOR summary queries
         # e.g., "summary of survey, crop area, and cultivated area"
         multi_indicators = self._detect_multi_indicators(q)
         if multi_indicators and len(multi_indicators) > 1:
@@ -76,44 +80,45 @@ class NLPHandler:
                 "year_filter": year_filter,
                 "season_filter": season_filter,
                 "crop_filter": None,
+                "district_filter": district_lgd,
+                "district_name": district_name,
                 "dimension": None,
                 "comparison_type": None,
                 "top_n": 10
             }
 
-        # 3. Detect specific year filter
+        # 4. Detect specific year filter
         year_filter = self._detect_year(q)
 
-        # 4. Check if this is a SUMMARY request (should NOT show distribution)
+        # 5. Check if this is a SUMMARY request (should NOT show distribution)
         is_summary_request = self._is_summary_request(q)
 
-        # 5. Detect dimension (how to group data) - ONLY if not a summary request
+        # 6. Detect dimension (how to group data) - ONLY if not a summary request
         dimension = None
         if not is_summary_request:
             dimension = self._detect_dimension(q)
 
-        # 6. Detect indicator (what metric to show)
+        # 7. Detect indicator (what metric to show)
         indicator = self._detect_indicator(q)
 
-        # 7. Detect filters
+        # 8. Detect filters
         crop_filter = self._detect_crop(q)
         season_filter = self._detect_season(q)
 
-        # 8. Detect comparison type
+        # 9. Detect comparison type
         comparison_type = self._detect_comparison(q)
 
-        # 9. Detect top N
+        # 10. Detect top N
         top_n = self._detect_top_n(q)
 
-        # 10. AUTO-DETECT: If asking about crop area without specific crops, show by crop
+        # 11. AUTO-DETECT: If asking about crop area without specific crops, show by crop
         # e.g., "total crop area", "provide crop area", "show crop area"
         if indicator == "crop_area" and not crop_filter and not dimension:
-            # Check if query is asking for general crop area (not crop-wise explicitly mentioned)
             crop_area_keywords = ["crop area", "cultivated area", "cultivation", "total crop", "all crop"]
             if any(kw in q for kw in crop_area_keywords):
                 dimension = "crop"  # Auto-set to show breakdown by crop
 
-        # 11. Determine intent type
+        # 12. Determine intent type
         if comparison_type:
             intent_type = "comparison"
         elif dimension:
@@ -125,6 +130,8 @@ class NLPHandler:
             "mode": "analytics",
             "indicator": indicator,
             "dimension": dimension,
+            "district_filter": district_lgd,
+            "district_name": district_name,
             "crop_filter": crop_filter,
             "season_filter": season_filter,
             "year_filter": year_filter,
@@ -253,12 +260,18 @@ class NLPHandler:
                     return indicator
 
         # PRIORITY 2: Keyword scoring for remaining cases
+        # Use word-boundary matching to avoid false matches (e.g., "na" inside "nagpur")
         scores = {}
         for key, meta in INDICATORS.items():
             score = 0
             for kw in meta["keywords"]:
-                if kw in q:
-                    score += len(kw.split()) * 2  # Weight by phrase length
+                if len(kw) <= 3:
+                    # Short keywords: require word boundary to prevent substring false matches
+                    if re.search(r'\b' + re.escape(kw) + r'\b', q):
+                        score += len(kw.split()) * 2
+                else:
+                    if kw in q:
+                        score += len(kw.split()) * 2  # Weight by phrase length
             scores[key] = score
 
         best = max(scores, key=scores.get)
@@ -352,12 +365,12 @@ class NLPHandler:
                 return season.title()
         return None
 
-    def _is_off_topic(self, q: str, words: set) -> bool:
+    def _is_off_topic(self, q: str, words: set, district_detected: bool = False) -> bool:
         """Detect if query is off-topic (not related to agriculture/farming data)"""
 
         # Agriculture-related keywords that indicate valid queries
         agri_keywords = {
-            # Crops
+            # Crops (singular + plural)
             "crop", "crops", "wheat", "rice", "maize", "sorghum", "sugarcane", "cotton",
             "soybean", "groundnut", "onion", "banana", "mango", "chickpea", "gram",
             "bajra", "jowar", "ragi", "mustard", "sunflower", "potato", "tomato",
@@ -365,15 +378,23 @@ class NLPHandler:
             "farmer", "farmers", "farm", "farming", "agriculture", "agricultural",
             "cultivate", "cultivated", "cultivation", "sowing", "harvest", "harvested",
             "irrigation", "irrigated", "unirrigated", "fallow", "land", "area",
-            # Survey terms
-            "survey", "surveyed", "surveyor", "plot", "plots", "village",
+            # Survey terms (singular + plural + all forms)
+            "survey", "surveys", "surveyed", "surveyor", "surveyors", "surveying",
+            "unsurveyed", "surveyable",
+            "plot", "plots", "village", "villages",
+            # Status/workflow terms used in agri queries
+            "approved", "approval", "pending", "review", "assigned", "closed",
+            "progress", "registered", "validation", "verified",
             # Seasons
-            "kharif", "rabi", "summer", "zaid", "season",
+            "kharif", "rabi", "summer", "zaid", "season", "seasons",
             # Administrative
-            "district", "state", "year", "annual",
-            # Metrics
-            "total", "summary", "count", "number", "how many", "percentage",
-            "distribution", "comparison", "trend", "top", "highest", "lowest"
+            "district", "districts", "state", "year", "annual",
+            # Metrics (individual words only - no phrases)
+            "total", "summary", "count", "number", "how", "many",
+            "percentage", "distribution", "comparison", "trend",
+            "top", "highest", "lowest", "average",
+            # Hectares/units
+            "hectare", "hectares", "acre", "acres",
         }
 
         # Also check crop names from config as valid agri terms
@@ -437,7 +458,10 @@ class NLPHandler:
                 return True  # Off-topic
 
         # If query has no agriculture keywords at all, it's likely off-topic
+        # BUT if a valid district name was detected, treat as agriculture query
         if not (words & agri_keywords) and not (words & agri_crop_set):
+            if district_detected:
+                return False  # District name found = likely asking for agri data
             return True
 
         return False

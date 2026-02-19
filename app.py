@@ -7,7 +7,7 @@ from datetime import datetime
 
 from config import LGD_TO_STATE
 from nlp_handler import NLPHandler
-from csv_handler import CSVHandler
+from db_handler import DBHandler
 
 app = FastAPI(title="AgriStack MIS Analytics - Comprehensive")
 
@@ -23,11 +23,11 @@ app.add_middleware(
 app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
 
 # Data source setting
-DATA_SOURCE = "csv"
+DATA_SOURCE = "database"
 
 # Initialize handlers
 nlp = NLPHandler()
-csv_engine = CSVHandler()
+db_engine = DBHandler()
 
 
 class UserQuery(BaseModel):
@@ -40,8 +40,8 @@ async def chat(request: UserQuery):
     user_lgd = request.user_lgd_code
     user_state = LGD_TO_STATE.get(user_lgd, f"State (LGD: {user_lgd})")
 
-    # 1. Classify Intent
-    intent = nlp.classify_intent(request.query)
+    # 1. Classify Intent (pass state LGD for district name detection)
+    intent = nlp.classify_intent(request.query, state_lgd=user_lgd)
 
     # 2. Handle Conversation Mode
     if intent.get("mode") == "conversation":
@@ -73,7 +73,7 @@ async def chat(request: UserQuery):
 
     # 3. Execute Analytics
     try:
-        result = csv_engine.execute_analytics(intent, user_lgd)
+        result = db_engine.execute_analytics(intent, user_lgd)
 
         # 4. Generate Narration
         narration = nlp.generate_narration(result, user_state, request.query)
@@ -104,6 +104,9 @@ async def chat(request: UserQuery):
         }
 
         # Add optional metadata
+        if intent.get("district_name"):
+            metadata["district_name"] = intent["district_name"]
+            metadata["district_lgd_code"] = intent["district_filter"]
         if result.get("crop_filter"):
             metadata["crop_filter"] = result["crop_filter"]
         if result.get("season_filter"):

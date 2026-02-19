@@ -10,23 +10,8 @@ DB_USER = os.getenv("DB_USER", "postgres")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "NKpallotti@99")
 DB_NAME = os.getenv("DB_NAME", "exam_db")
 
-LGD_TO_STATE = {
-    "27": "Maharashtra",
-    "09": "Uttar Pradesh",
-    "24": "Gujarat",
-    "10": "Bihar",
-    "33": "Tamil Nadu",
-    "29": "Karnataka"
-}
-
-# ============================================================
-# CSV FILE MAPPING
-# ============================================================
-CSV_FILES = {
-    "crop_area": "data_for_testing/data-1768987385851mhCropArea.csv",
-    "aggregate": "data_for_testing/data-1768987329067mhAgreegatedData.csv",
-    "cultivated": "data_for_testing/data-1768987427993mhCultivatedData.csv"
-}
+# LGD mappings loaded from CSV files (state_lgd_data.csv & district_lgd_data-1.csv)
+from lgd_mapping import LGD_TO_STATE, LGD_TO_DISTRICT_NAME
 
 # ============================================================
 # COMPREHENSIVE INDICATORS REGISTRY
@@ -156,7 +141,7 @@ INDICATORS = {
         "column": "total_na_area",
         "title": "NA Area",
         "unit": "Hectares",
-        "keywords": ["na area", "not available", "na", "classified as na"]
+        "keywords": ["na area", "not available area", "classified as na"]
     },
     "harvested_area": {
         "table": "cultivated",
